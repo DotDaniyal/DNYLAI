@@ -1,7 +1,6 @@
 import express, { Request, Response } from "express";
 import http from "http";
 import path from "path";
-import fs from "fs";
 import crypto from "crypto";
 import os from "os";
 import { fileURLToPath } from "url";
@@ -13,10 +12,7 @@ const __dirname = path.dirname(__filename);
 
 const PORT = Number(process.env.PORT) || 3000;
 const PUBLIC_DIR = path.join(__dirname, "public");
-const UPLOADS_DIR = path.join(__dirname, "uploads");
-fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
-// ── Shared Gemini Client ──────────────────────────────────────────────────────
 function getGenAI(): GoogleGenAI | null {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return null;
@@ -60,7 +56,7 @@ function getAvailableLadder(): RungStatus[] {
   return ready.length > 0 ? ready : MODEL_LADDER;
 }
 
-// ── Persistent In-Memory State (Config, Memory, Undo, Confirmations, Files) ──
+// ── State (Config, Memory, Undo, Confirmations, Files) ────────────────────────
 interface AssistantConfig {
   assistant_name: string;
   user_name: string;
@@ -71,8 +67,6 @@ interface AssistantConfig {
   wake_word_enabled: boolean;
   push_to_talk_enabled: boolean;
   morning_brief_enabled: boolean;
-  proactive_audio: boolean;
-  thinking_enabled: boolean;
 }
 
 const configState: AssistantConfig = {
@@ -85,24 +79,14 @@ const configState: AssistantConfig = {
   wake_word_enabled: false,
   push_to_talk_enabled: false,
   morning_brief_enabled: true,
-  proactive_audio: true,
-  thinking_enabled: false,
 };
 
-interface SystemSettingsState {
-  volume: number;
-  brightness: number;
-  dark_mode: boolean;
-  wifi: boolean;
-  power_state: "running" | "restarting" | "shutdown";
-}
-
-const sysSettings: SystemSettingsState = {
+const sysSettings = {
   volume: 72,
   brightness: 85,
   dark_mode: true,
   wifi: true,
-  power_state: "running",
+  power_state: "running" as "running" | "restarting" | "shutdown",
 };
 
 interface MemoryEntry {
@@ -132,7 +116,6 @@ const memoryStore: Record<MemoryCategory, Record<string, MemoryEntry>> = {
   },
 };
 
-// Virtual sandboxed files for file_controller and file_processor
 const virtualFiles: Map<string, { name: string; folder: string; content: string; updatedAt: string }> = new Map([
   [
     "Desktop/mission_brief.md",
@@ -144,9 +127,9 @@ const virtualFiles: Map<string, { name: string; folder: string; content: string;
     },
   ],
   [
-    "Desktop/system_Diagnostic_2026.log",
+    "Desktop/system_diagnostic.log",
     {
-      name: "system_Diagnostic_2026.log",
+      name: "system_diagnostic.log",
       folder: "Desktop",
       content: "[OK] Audio subsystem MME/DirectSound calibrated\n[OK] MediaPipe 468-vertex canonical face mesh loaded\n[OK] Cooldown timers nominal.",
       updatedAt: new Date().toISOString(),
@@ -163,7 +146,6 @@ const virtualFiles: Map<string, { name: string; folder: string; content: string;
   ],
 ]);
 
-// Undo stack
 interface UndoItem {
   id: string;
   description: string;
@@ -181,7 +163,6 @@ function registerUndo(description: string, fn: () => string) {
   });
 }
 
-// Confirmation Gate (tokens issued ONLY by the UI / server gate, never forged by the model)
 interface PendingConfirmation {
   token: string;
   action: string;
@@ -191,7 +172,6 @@ interface PendingConfirmation {
 }
 let pendingConfirmation: PendingConfirmation | null = null;
 
-// Reminders & Background Monitors
 interface ReminderItem {
   id: string;
   title: string;
@@ -212,7 +192,20 @@ const monitors: MonitorTopic[] = [
   { id: "mon-1", topic: "Gemini Live API & AI Hardware Releases", lastChecked: "Just now", status: "Watching daily" },
 ];
 
-// ── Memory Formatting & Search (Ported from memory_manager.py) ───────────────
+const chatHistory: Array<{ speaker: string; text: string; time: string; model?: string }> = [
+  {
+    speaker: "sys",
+    text: "MARK LV (55) PROTOCOL INITIALISED — HOLOGRAPHIC AVATAR & MODEL LADDER ONLINE",
+    time: new Date().toLocaleTimeString(),
+  },
+  {
+    speaker: "jarvis",
+    text: "All systems nominal, Commander. The holographic head, recallable memory store, undo stack, and 12 computer-driving skills are standing by.",
+    time: new Date().toLocaleTimeString(),
+    model: "gemini-3.8-flash",
+  },
+];
+
 function formatMemoryForPrompt(): string {
   const lines: string[] = [
     "[WHAT YOU KNOW ABOUT THIS PERSON — use naturally, never recite like a list]",
@@ -326,7 +319,7 @@ const TOOL_DECLARATIONS: FunctionDeclaration[] = [
   },
   {
     name: "file_processor",
-    description: "Read and analyze the contents of a file in the workspace or uploads folder.",
+    description: "Read and analyze the contents of a file in the workspace.",
     parameters: {
       type: Type.OBJECT,
       properties: {
@@ -360,7 +353,7 @@ const TOOL_DECLARATIONS: FunctionDeclaration[] = [
         },
         key: {
           type: Type.STRING,
-          description: "Short snake_case key name, e.g. sister_name or favorite_editor",
+          description: "Short snake_case key name",
         },
         value: {
           type: Type.STRING,
@@ -372,7 +365,7 @@ const TOOL_DECLARATIONS: FunctionDeclaration[] = [
   },
   {
     name: "recall_memory",
-    description: "Search full long-term memory on disk for facts matching a keyword.",
+    description: "Search full long-term memory for facts matching a keyword.",
     parameters: {
       type: Type.OBJECT,
       properties: {
@@ -392,7 +385,7 @@ const TOOL_DECLARATIONS: FunctionDeclaration[] = [
       properties: {
         city: {
           type: Type.STRING,
-          description: "City name (defaults to user's stored city)",
+          description: "City name",
         },
       },
     },
@@ -417,7 +410,7 @@ const TOOL_DECLARATIONS: FunctionDeclaration[] = [
   },
   {
     name: "reminder",
-    description: "Schedule a reminder notification or list active reminders.",
+    description: "Schedule a reminder notification.",
     parameters: {
       type: Type.OBJECT,
       properties: {
@@ -427,7 +420,7 @@ const TOOL_DECLARATIONS: FunctionDeclaration[] = [
         },
         time: {
           type: Type.STRING,
-          description: "Time or delay for the reminder (e.g. '18:30' or 'in 20 minutes')",
+          description: "Time or delay for the reminder",
         },
       },
       required: ["title", "time"],
@@ -457,7 +450,6 @@ const TOOL_DECLARATIONS: FunctionDeclaration[] = [
   },
 ];
 
-// ── Execute Tool Calls ────────────────────────────────────────────────────────
 interface ToolSideEffect {
   hudVideo?: { action: "play" | "stop" | "mute" | "unmute"; query?: string; embedUrl?: string; title?: string };
   confirmationPending?: { token: string; action: string; label: string };
@@ -473,7 +465,6 @@ async function executeSkill(
   switch (name) {
     case "computer_settings": {
       const action = String(args.action || "").toLowerCase();
-      // Irreversible actions -> Real Confirmation Gate
       if (action === "shutdown" || action === "restart" || action === "toggle_wifi") {
         const token = crypto.randomBytes(6).toString("hex").toUpperCase();
         const label =
@@ -501,7 +492,7 @@ async function executeSkill(
         };
         effect.confirmationPending = { token, action, label };
         return {
-          output: `[CONFIRMATION_PENDING] Action '${label}' requires the user to press CONFIRM on the HUD banner. Do not say it is done; ask them briefly to confirm on screen.`,
+          output: `[CONFIRMATION_PENDING] Action '${label}' requires the user to press CONFIRM on the HUD banner.`,
           effect,
         };
       }
@@ -568,7 +559,6 @@ async function executeSkill(
           effect,
         };
       }
-      // Resolve video URL or YouTube embed
       let embedUrl = "";
       let title = query || "HUD Media Stream";
       const ytMatch = query.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([A-Za-z0-9_-]{11})/);
@@ -577,7 +567,6 @@ async function executeSkill(
       } else if (/^https?:\/\/.+\.(mp4|webm|ogg)$/i.test(query)) {
         embedUrl = query;
       } else {
-        // Curated high-reliability YouTube / MP4 streams for common queries + general search embed
         const qLow = query.toLowerCase();
         if (qLow.includes("dune")) {
           embedUrl = "https://www.youtube.com/embed/Way9Dexny3w?autoplay=1&mute=1";
@@ -592,7 +581,7 @@ async function executeSkill(
       }
       effect.hudVideo = { action: "play", query, embedUrl, title };
       return {
-        output: `Playing '${title}' in the HUD centre (muted by default so it doesn't talk over you).`,
+        output: `Playing '${title}' in the HUD centre (muted by default).`,
         effect,
       };
     }
@@ -609,7 +598,6 @@ async function executeSkill(
       }
 
       if (action === "organize_desktop") {
-        // Journal every move so a single undo puts all of them back!
         const moves: Array<{ from: string; to: string }> = [];
         for (const [k, v] of Array.from(virtualFiles.entries())) {
           if (k.startsWith("Desktop/")) {
@@ -762,7 +750,7 @@ async function executeSkill(
         const loc = geoData?.results?.[0];
         if (loc) {
           const wRes = await fetch(
-            `https://api.open-meteo.com/v1/forecast?latitude=${loc.latitude}&longitude=${loc.longitude}&current=temperature_2m,relative_humidity_2m,wind_speed_10m,weather_code`
+            `https://api.open-meteo.com/v1/forecast?latitude=${loc.latitude}&longitude=${loc.longitude}&current=temperature_2m,relative_humidity_2m,wind_speed_10m`
           );
           const wData: any = await wRes.json();
           const cur = wData?.current || {};
@@ -827,13 +815,12 @@ async function executeSkill(
     case "reminder": {
       const title = String(args.title || "Reminder");
       const time = String(args.time || "Soon");
-      const item: ReminderItem = {
+      reminders.unshift({
         id: `rem-${Date.now()}`,
         title,
         time,
         created: new Date().toLocaleTimeString(),
-      };
-      reminders.unshift(item);
+      });
       return { output: `Scheduled reminder '${title}' for ${time}.`, effect };
     }
 
@@ -870,12 +857,11 @@ async function executeSkill(
   }
 }
 
-// ── Viseme Schedule Generator (Ported from core/viseme.py) ────────────────────
 function buildVisemeScheduleFromText(text: string, durationSec?: number): {
   frames: Array<[number, number, number]>;
   hop: number;
 } {
-  const hop = 0.02; // 50 Hz (20ms frames)
+  const hop = 0.02;
   const clean = (text || "").trim();
   const estDuration = durationSec || Math.max(1.2, Math.min(14.0, clean.length * 0.055));
   const totalFrames = Math.max(10, Math.round(estDuration / hop));
@@ -891,7 +877,6 @@ function buildVisemeScheduleFromText(text: string, durationSec?: number): {
     let wide = 0.0;
 
     if ("pbm".includes(ch)) {
-      // Bilabial closure!
       level = 0.02;
       open = 0.0;
       wide = 0.0;
@@ -906,11 +891,11 @@ function buildVisemeScheduleFromText(text: string, durationSec?: number): {
     } else if ("eéiíy".includes(ch)) {
       level = 0.68;
       open = 0.55;
-      wide = 0.78; // spread lips
+      wide = 0.78;
     } else if ("oóuúüöw".includes(ch)) {
       level = 0.72;
       open = 0.64;
-      wide = -0.78; // rounded lips
+      wide = -0.78;
     } else if (" .,;:!?-\n".includes(ch)) {
       level = 0.01;
       open = 0.0;
@@ -922,15 +907,7 @@ function buildVisemeScheduleFromText(text: string, durationSec?: number): {
   return { frames, hop };
 }
 
-// ── System Metrics Helper ─────────────────────────────────────────────────────
 function getSystemMetrics() {
-  const cpus = os.cpus();
-  let busy = 0;
-  let total = 0;
-  for (const cpu of cpus) {
-    for (const t of Object.values(cpu.times)) total += t;
-    busy += total - cpu.times.idle;
-  }
   const cpuPct = Math.min(99, Math.max(6, ((os.loadavg()[0] * 22) % 85) + Math.random() * 6));
   const totalMem = os.totalmem();
   const freeMem = os.freemem();
@@ -953,64 +930,6 @@ function getSystemMetrics() {
   };
 }
 
-// ── AES-256-CBC Remote Dashboard Security (Ported from dashboard/server.py) ──
-const AES_SALT = Buffer.from("JARVIS-DASHBOARD-v1", "utf-8");
-const KEY_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
-
-function deriveAesKey(sessionKey: string): Buffer {
-  return crypto
-    .createHash("sha256")
-    .update(Buffer.concat([Buffer.from(sessionKey, "utf-8"), AES_SALT]))
-    .digest();
-}
-
-function decryptCbc(aesKey: Buffer, encB64: string): string | null {
-  try {
-    const raw = Buffer.from(encB64, "base64");
-    const iv = raw.subarray(0, 16);
-    const ct = raw.subarray(16);
-    const decipher = crypto.createDecipheriv("aes-256-cbc", aesKey, iv);
-    const decrypted = Buffer.concat([decipher.update(ct), decipher.final()]);
-    return decrypted.toString("utf-8");
-  } catch {
-    return null;
-  }
-}
-
-const pendingKeys = new Map<string, number>();
-const tokens = new Set<string>();
-const tokenKeys = new Map<string, string>();
-const deviceSessions = new Map<string, { session_key: string }>();
-const chatHistory: Array<{ speaker: string; text: string; time: string; model?: string }> = [
-  {
-    speaker: "sys",
-    text: "MARK LV (55) PROTOCOL INITIALISED — HOLOGRAPHIC AVATAR & 9-MODEL LADDER ONLINE",
-    time: new Date().toLocaleTimeString(),
-  },
-  {
-    speaker: "jarvis",
-    text: "All systems nominal, Commander. The holographic head, recallable memory store, undo stack, and 12 computer-driving skills are standing by.",
-    time: new Date().toLocaleTimeString(),
-    model: "gemini-3.8-flash",
-  },
-];
-
-function generatePairingKey(expirySecs = 600): string {
-  const now = Date.now();
-  for (const [k, exp] of pendingKeys.entries()) {
-    if (exp <= now) pendingKeys.delete(k);
-  }
-  let key = "";
-  for (let i = 0; i < 6; i++) {
-    key += KEY_CHARS[Math.floor(Math.random() * KEY_CHARS.length)];
-  }
-  pendingKeys.set(key, now + expirySecs * 1000);
-  return key;
-}
-
-// Pre-seed a pairing key so the UI always shows an active one immediately
-let currentPairingKey = generatePairingKey(3600);
-
 // ── Express & WebSocket Setup ─────────────────────────────────────────────────
 const app = express();
 app.use(express.json({ limit: "25mb" }));
@@ -1029,7 +948,6 @@ function broadcastWs(msg: Record<string, any>) {
   }
 }
 
-// ── Core Command Processor (Gemini Ladder + Tool Dispatch + Optional TTS) ─────
 async function processJarvisCommand(
   userText: string,
   opts: { withAudio?: boolean; imageBase64?: string; imageMime?: string } = {}
@@ -1048,7 +966,6 @@ async function processJarvisCommand(
   broadcastWs({ type: "log", speaker: "user", text: userMsg.text, time: userMsg.time });
   broadcastWs({ type: "status", state: "THINKING" });
 
-  // Fast local undo shortcut if user just says "undo"
   if (/^(undo|geri al|revert|put it back)$/i.test(trimmed)) {
     const { output, effect } = await executeSkill("undo", {});
     const replyMsg = {
@@ -1073,7 +990,7 @@ async function processJarvisCommand(
 Addressing user as: ${configState.user_name || "Commander"}.
 Voice & Tone:
 - Have a clear assessment in the first sentence. Be concrete with numbers, files, and settings.
-- Steady, composed register. Dry understatement when appropriate.
+- Steady, composed register.
 - When a request can be fulfilled by one of your tools (computer_settings, video_player, file_controller, file_processor, undo, save_memory, recall_memory, weather_report, web_search, reminder, background_monitor, system_monitor), CALL THE TOOL immediately.
 - If a tool returns [CONFIRMATION_PENDING], ask the user in one short sentence to press CONFIRM on the HUD banner; never claim the action has already executed.
 
@@ -1137,7 +1054,6 @@ ${formatMemoryForPrompt()}`;
             });
           }
 
-          // Follow-up synthesis turn or direct concise summary
           const followUp = await ai.models.generateContent({
             model: rung.model,
             contents: [
@@ -1174,7 +1090,6 @@ ${formatMemoryForPrompt()}`;
     }
   }
 
-  // Deterministic local fallback if API key is missing or all models are cooling
   if (!replyText) {
     const low = trimmed.toLowerCase();
     if (low.includes("play") || low.includes("trailer") || low.includes("video") || low.includes("youtube")) {
@@ -1212,7 +1127,6 @@ ${formatMemoryForPrompt()}`;
     }
   }
 
-  // Optional Gemini TTS audio synthesis
   let audioBase64: string | undefined;
   if (opts.withAudio && ai && replyText) {
     try {
@@ -1238,7 +1152,7 @@ ${formatMemoryForPrompt()}`;
       });
       audioBase64 = ttsResp.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
     } catch {
-      // Client falls back to Web Speech synthesis + viseme schedule seamlessly
+      // Client uses Web Speech synthesis + viseme schedule fallback
     }
   }
 
@@ -1267,7 +1181,7 @@ ${formatMemoryForPrompt()}`;
   return { reply: replyText, modelUsed, effects, viseme, audioBase64 };
 }
 
-// ── API Routes for Main Mark LV HUD ───────────────────────────────────────────
+// ── API Routes ────────────────────────────────────────────────────────────────
 app.get("/api/state", (_req: Request, res: Response) => {
   const flatMemory: Array<{ category: string; key: string; value: string; updated: string }> = [];
   for (const [cat, items] of Object.entries(memoryStore)) {
@@ -1296,7 +1210,6 @@ app.get("/api/state", (_req: Request, res: Response) => {
       : null,
     reminders,
     monitors,
-    pairingKey: currentPairingKey,
     history: chatHistory.slice(-60),
   });
 });
@@ -1310,37 +1223,6 @@ app.post("/api/chat", async (req: Request, res: Response) => {
       imageMime,
     });
     res.json({ ok: true, ...result });
-  } catch (err: any) {
-    res.status(500).json({ ok: false, error: String(err?.message || err) });
-  }
-});
-
-app.post("/api/transcribe", async (req: Request, res: Response) => {
-  try {
-    const { audioBase64, mimeType } = req.body || {};
-    if (!audioBase64) {
-      return res.status(400).json({ ok: false, error: "Missing audioBase64" });
-    }
-    const ai = getGenAI();
-    if (!ai) {
-      return res.status(503).json({ ok: false, error: "Gemini API not configured on server" });
-    }
-    const resp = await ai.models.generateContent({
-      model: "gemini-3.5-transcribe",
-      contents: {
-        parts: [
-          {
-            inlineData: {
-              mimeType: mimeType || "audio/webm",
-              data: String(audioBase64).replace(/^data:[^;]+;base64,/, ""),
-            },
-          },
-          { text: "Transcribe this spoken command accurately. Return only the transcription." },
-        ],
-      },
-    });
-    const transcript = (resp.text || "").trim();
-    res.json({ ok: true, transcript });
   } catch (err: any) {
     res.status(500).json({ ok: false, error: String(err?.message || err) });
   }
@@ -1411,165 +1293,24 @@ app.post("/api/confirm", (req: Request, res: Response) => {
   }
 });
 
-app.post("/api/pairing-key", (_req: Request, res: Response) => {
-  currentPairingKey = generatePairingKey(3600);
-  res.json({ ok: true, key: currentPairingKey });
-});
-
-// ── Original Remote Dashboard Compatibility Routes (dashboard/server.py) ──────
-function isAuth(req: Request): boolean {
-  const auth = req.headers.authorization || "";
-  const tok = auth.replace(/^Bearer\s+/i, "").trim();
-  return Boolean(tok && tokens.has(tok));
-}
-
-app.get("/login", (_req: Request, res: Response) => {
-  const htmlPath = path.join(PUBLIC_DIR, "remote-login.html");
-  if (fs.existsSync(htmlPath)) {
-    res.sendFile(htmlPath);
-  } else {
-    res.redirect("/");
-  }
-});
-
-app.get("/remote", (req: Request, res: Response) => {
-  const htmlPath = path.join(PUBLIC_DIR, "remote-app.html");
-  if (fs.existsSync(htmlPath)) {
-    const raw = fs.readFileSync(htmlPath, "utf-8");
-    const host = req.headers.host || `localhost:${PORT}`;
-    const [ip, port] = host.split(":");
-    res.type("html").send(raw.replace(/__IP__/g, ip || "localhost").replace(/__PORT__/g, port || String(PORT)));
-  } else {
-    res.redirect("/");
-  }
-});
-
-app.post("/login", (req: Request, res: Response) => {
-  const entered = String(req.body?.pin || "").trim().toUpperCase();
-  const now = Date.now();
-  const exp = pendingKeys.get(entered);
-  if ((exp && exp > now) || entered === currentPairingKey) {
-    pendingKeys.delete(entered);
-    const tok = crypto.randomBytes(24).toString("base64url");
-    tokens.add(tok);
-    tokenKeys.set(tok, entered);
-    broadcastWs({ type: "sys", text: "Remote phone dashboard connected." });
-    return res.json({ ok: true, token: tok });
-  }
-  return res.status(401).json({ ok: false, error: "Invalid or expired key" });
-});
-
-app.get("/auto-login", (req: Request, res: Response) => {
-  const key = String(req.query.key || "").trim().toUpperCase();
-  const now = Date.now();
-  const exp = pendingKeys.get(key);
-  if (!key || ((!exp || exp <= now) && key !== currentPairingKey)) {
-    return res.type("html").send(`<!DOCTYPE html>
-<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width">
-<style>body{background:#07090f;color:#dde3ed;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;text-align:center}h2{color:#f87171;margin-bottom:12px}p{color:#5e6a7e;font-size:14px}</style></head>
-<body><div><h2>Link Expired</h2><p>Open <strong>Remote Control</strong> in JARVIS HUD to get a fresh key.</p></div></body></html>`);
-  }
-  const tok = crypto.randomBytes(24).toString("base64url");
-  const devTok = crypto.randomBytes(24).toString("base64url");
-  tokens.add(tok);
-  tokenKeys.set(tok, key);
-  deviceSessions.set(devTok, { session_key: key });
-  broadcastWs({ type: "sys", text: "Remote connection established via QR link." });
-  res.type("html").send(`<!DOCTYPE html>
-<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width">
-<style>body{background:#07090f;color:#dde3ed;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;text-align:center}p{color:#5e6a7e;font-size:14px}</style></head>
-<body><script>
-  sessionStorage.setItem('jarvis_token','${tok}');
-  sessionStorage.setItem('jarvis_key','${key}');
-  localStorage.setItem('jarvis_device_token','${devTok}');
-  setTimeout(function(){location.replace('/remote')},300);
-</script><p>Connecting to JARVIS Remote Dashboard…</p></body></html>`);
-});
-
-app.post("/api/device-login", (req: Request, res: Response) => {
-  const devTok = String(req.body?.device_token || "").trim();
-  const sess = deviceSessions.get(devTok);
-  if (!devTok || !sess) {
-    return res.status(401).json({ ok: false });
-  }
-  const tok = crypto.randomBytes(24).toString("base64url");
-  tokens.add(tok);
-  tokenKeys.set(tok, sess.session_key);
-  return res.json({ ok: true, token: tok, key: sess.session_key });
-});
-
-app.post("/api/revoke-devices", (req: Request, res: Response) => {
-  if (!isAuth(req)) return res.status(401).json({ error: "Unauthorized" });
-  const revoked = deviceSessions.size;
-  deviceSessions.clear();
-  res.json({ ok: true, revoked });
-});
-
-app.post("/api/command", async (req: Request, res: Response) => {
-  if (!isAuth(req)) return res.status(401).json({ error: "Unauthorized" });
-  const tok = (req.headers.authorization || "").replace(/^Bearer\s+/i, "").trim();
-  const enc = String(req.body?.enc || "");
-  let text = "";
-  if (enc) {
-    const sk = tokenKeys.get(tok);
-    if (!sk) return res.status(400).json({ error: "Decryption failed" });
-    const dec = decryptCbc(deriveAesKey(sk), enc);
-    if (dec === null) return res.status(400).json({ error: "Decryption failed" });
-    text = dec;
-  } else {
-    text = String(req.body?.text || "").trim();
-  }
-  if (text) {
-    await processJarvisCommand(text);
-  }
-  res.json({ ok: true });
-});
-
-app.post("/api/wake", (req: Request, res: Response) => {
-  if (!isAuth(req)) return res.status(401).json({ error: "Unauthorized" });
-  broadcastWs({ type: "wake" });
-  broadcastWs({ type: "status", state: "active" });
-  res.json({ ok: true });
-});
-
-app.get("/api/files", (_req: Request, res: Response) => {
-  const files = Array.from(virtualFiles.entries()).map(([k, v]) => ({
-    name: v.name,
-    path: k,
-    size: Buffer.byteLength(v.content, "utf-8"),
-  }));
-  res.json({ files });
-});
-
-// Static assets (face_model.obj, static/crypto.js, index.html)
 app.use(express.static(PUBLIC_DIR));
 
-// Fallback to index.html
 app.get("*", (_req: Request, res: Response) => {
   res.sendFile(path.join(PUBLIC_DIR, "index.html"));
 });
 
-// ── WebSocket Upgrade Handling (/ws and /ws/phone-audio) ─────────────────────
 server.on("upgrade", (request, socket, head) => {
   const url = new URL(request.url || "/", `http://${request.headers.host || "localhost"}`);
-  if (url.pathname === "/ws" || url.pathname === "/ws/phone-audio") {
+  if (url.pathname === "/ws") {
     wss.handleUpgrade(request, socket, head, (ws) => {
-      wss.emit("connection", ws, request, url);
+      wss.emit("connection", ws, request);
     });
   } else {
     socket.destroy();
   }
 });
 
-wss.on("connection", (ws: WebSocket, _req: http.IncomingMessage, url: URL) => {
-  if (url.pathname === "/ws/phone-audio") {
-    broadcastWs({ type: "sys", text: "Phone microphone stream active." });
-    ws.on("close", () => {
-      broadcastWs({ type: "sys", text: "Phone microphone stream stopped." });
-    });
-    return;
-  }
-
+wss.on("connection", (ws: WebSocket) => {
   wsClients.add(ws);
   ws.send(JSON.stringify({ type: "status", state: "active" }));
 
@@ -1591,5 +1332,5 @@ wss.on("connection", (ws: WebSocket, _req: http.IncomingMessage, url: URL) => {
 });
 
 server.listen(PORT, "0.0.0.0", () => {
-  console.log(`[MARK LV] JARVIS HUD & Remote Dashboard online at http://0.0.0.0:${PORT}`);
+  console.log(`[MARK LV] JARVIS HUD online at http://0.0.0.0:${PORT}`);
 });

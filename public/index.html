@@ -567,16 +567,6 @@
       border: 1px solid var(--border);
       font-size: 11px;
     }
-    .pin-box {
-      font-size: 24px;
-      letter-spacing: 8px;
-      font-weight: 700;
-      color: var(--pri);
-      background: var(--dark);
-      border: 1px dashed var(--pri);
-      padding: 10px;
-      text-align: center;
-    }
 
     @media (max-width: 960px) {
       .hud-body {
@@ -810,12 +800,6 @@
             <button class="chip" onclick="applyThemeAccent('#a855f7')">Quantum Violet</button>
           </div>
 
-          <div class="sec-title">📱 Remote Phone Dashboard Pairing</div>
-          <div class="pin-box" id="pairing-pin">------</div>
-          <div style="display:flex;gap:8px">
-            <button class="hdr-btn" style="flex:1;justify-content:center" onclick="refreshPairingKey()">↻ NEW PIN</button>
-            <a class="hdr-btn" style="flex:1;justify-content:center;text-decoration:none" href="/login" target="_blank">↗ OPEN REMOTE UI</a>
-          </div>
 
           <div class="sec-title">🧠 Recallable Memory Panel</div>
           <div style="display:flex;gap:6px">
@@ -2121,13 +2105,6 @@
       refreshState();
     }
 
-    async function refreshPairingKey() {
-      const res = await fetch("/api/pairing-key", { method: "POST" });
-      const data = await res.json();
-      if (data.key) {
-        document.getElementById("pairing-pin").textContent = data.key;
-      }
-    }
 
     async function addMemoryFact() {
       const category = document.getElementById("mem-cat").value;
@@ -2204,10 +2181,6 @@
           </div>`;
         }).join("");
 
-        // Pairing PIN
-        if (s.pairingKey) {
-          document.getElementById("pairing-pin").textContent = s.pairingKey;
-        }
 
         // Memory entries
         const memList = document.getElementById("memory-list");
