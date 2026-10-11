@@ -1,0 +1,2295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mark LV — JARVIS AI Assistant &amp; HUD</title>
+  <meta name="description" content="Cross-platform personal AI assistant with real-time 3D holographic avatar, Gemini Live &amp; multi-model ladder, recallable memory, undoable actions, video HUD, and remote dashboard." />
+  <meta property="og:title" content="Mark LV — JARVIS AI Assistant &amp; HUD" />
+  <meta property="og:description" content="Cross-platform personal AI assistant with real-time 3D holographic avatar, Gemini Live &amp; multi-model ladder, recallable memory, undoable actions, video HUD, and remote dashboard." />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #00060a;
+      --panel: #010d14;
+      --panel2: #010f18;
+      --border: #0d3347;
+      --border-b: #1a5c7a;
+      --border-a: #0f4060;
+      --pri: #00d4ff;
+      --pri-dim: #007a99;
+      --pri-gho: #001f2e;
+      --acc: #ff6b00;
+      --acc2: #ffcc00;
+      --green: #00ff88;
+      --green-d: #00aa55;
+      --red: #ff3355;
+      --muted-c: #ff3366;
+      --text: #8ffcff;
+      --text-dim: #3a8a9a;
+      --text-med: #5ab8cc;
+      --white: #d8f8ff;
+      --dark: #000d14;
+      --bar-bg: #011520;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Courier New", Consolas, monospace;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    .app-shell {
+      display: flex;
+      flex-direction: column;
+      width: 100vw;
+      height: 100vh;
+      background: var(--bg);
+      border: 1px solid var(--border);
+    }
+
+    /* ── TOP HEADER BAR ── */
+    .hud-header {
+      height: 46px;
+      flex-shrink: 0;
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 14px;
+      gap: 10px;
+      z-index: 30;
+    }
+    .brand-title {
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 4px;
+      color: var(--white);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .brand-badge {
+      font-size: 10px;
+      padding: 2px 7px;
+      background: var(--pri-gho);
+      border: 1px solid var(--border-b);
+      color: var(--pri);
+      letter-spacing: 2px;
+    }
+    .hdr-pill {
+      font-size: 10px;
+      padding: 3px 9px;
+      border: 1px solid var(--border);
+      background: var(--dark);
+      color: var(--text-med);
+      letter-spacing: 1.5px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .hdr-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 8px var(--green);
+    }
+    .hdr-spacer { flex: 1; }
+    .hdr-btn {
+      background: var(--panel2);
+      border: 1px solid var(--border-b);
+      color: var(--text);
+      font-family: inherit;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      padding: 6px 11px;
+      cursor: pointer;
+      transition: all 0.15s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .hdr-btn:hover, .hdr-btn.active {
+      background: var(--pri-gho);
+      border-color: var(--pri);
+      color: var(--white);
+      box-shadow: 0 0 10px rgba(0, 212, 255, 0.2);
+    }
+    .hdr-btn.danger {
+      border-color: var(--muted-c);
+      color: var(--muted-c);
+    }
+    .hdr-btn.warn {
+      border-color: var(--acc2);
+      color: var(--acc2);
+    }
+
+    /* ── CONFIRMATION BANNER (UI-ISSUED TOKEN GATE) ── */
+    .confirm-banner {
+      display: none;
+      background: rgba(255, 51, 85, 0.12);
+      border-bottom: 1px solid var(--red);
+      padding: 9px 16px;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      z-index: 28;
+    }
+    .confirm-banner.show { display: flex; }
+    .confirm-text {
+      font-size: 12px;
+      color: var(--white);
+      letter-spacing: 1px;
+    }
+    .confirm-text strong { color: var(--acc2); }
+    .confirm-actions { display: flex; gap: 8px; }
+    .btn-confirm {
+      background: var(--red);
+      color: #fff;
+      border: none;
+      padding: 5px 14px;
+      font-family: inherit;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      cursor: pointer;
+    }
+    .btn-cancel {
+      background: var(--panel);
+      color: var(--text);
+      border: 1px solid var(--border-b);
+      padding: 5px 12px;
+      font-family: inherit;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      cursor: pointer;
+    }
+
+    /* ── MAIN 3-COLUMN WORKSPACE ── */
+    .hud-body {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 210px 1fr 360px;
+      min-height: 0;
+      position: relative;
+    }
+
+    /* ── LEFT TELEMETRY SIDEBAR ── */
+    .left-panel {
+      background: var(--panel);
+      border-right: 1px solid var(--border);
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      overflow-y: auto;
+    }
+    .sec-title {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      color: var(--pri-dim);
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 4px;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+    }
+    .metric-row {
+      margin-bottom: 7px;
+    }
+    .metric-hdr {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      margin-bottom: 3px;
+      color: var(--text-med);
+    }
+    .metric-val { color: var(--white); font-weight: 700; }
+    .metric-bar-bg {
+      height: 6px;
+      background: var(--bar-bg);
+      border: 1px solid var(--border);
+      overflow: hidden;
+    }
+    .metric-bar-fill {
+      height: 100%;
+      background: var(--pri);
+      width: 0%;
+      transition: width 0.35s ease;
+    }
+
+    .mini-list {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      font-size: 11px;
+    }
+    .mini-item {
+      padding: 6px 8px;
+      background: var(--dark);
+      border: 1px solid var(--border);
+      color: var(--text-med);
+      cursor: pointer;
+      transition: border-color 0.15s;
+    }
+    .mini-item:hover { border-color: var(--pri); color: var(--white); }
+    .mini-item .sub { font-size: 9px; color: var(--text-dim); margin-top: 2px; }
+
+    /* ── CENTRE HUD STAGE (AVATAR / REACTOR CORE / VIDEO + CONTENT PANEL) ── */
+    .center-stage {
+      display: flex;
+      flex-direction: column;
+      background: var(--bg);
+      position: relative;
+      min-width: 0;
+      min-height: 0;
+    }
+    .canvas-wrap {
+      flex: 1;
+      position: relative;
+      min-height: 280px;
+      overflow: hidden;
+    }
+    #hud-canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    /* Video on the HUD (shares exact center stack where avatar sits) */
+    .hud-video-layer {
+      position: absolute;
+      inset: 14px;
+      background: #00080d;
+      border: 1px solid var(--pri);
+      box-shadow: 0 0 28px rgba(0, 212, 255, 0.18);
+      display: none;
+      flex-direction: column;
+      z-index: 12;
+    }
+    .hud-video-layer.show { display: flex; }
+    .hud-video-hdr {
+      height: 36px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--border-b);
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      gap: 10px;
+      font-size: 11px;
+      color: var(--white);
+      letter-spacing: 1.5px;
+    }
+    .hud-video-body {
+      flex: 1;
+      position: relative;
+      background: #000;
+    }
+    .hud-video-body iframe,
+    .hud-video-body video {
+      width: 100%;
+      height: 100%;
+      border: none;
+      display: block;
+    }
+
+    /* Quick Prompt Chips overlay at top of center stage */
+    .quick-chips {
+      position: absolute;
+      top: 10px;
+      left: 12px;
+      right: 12px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      z-index: 8;
+      pointer-events: none;
+    }
+    .chip {
+      pointer-events: auto;
+      background: rgba(1, 13, 20, 0.82);
+      border: 1px solid var(--border-b);
+      color: var(--text-med);
+      font-family: inherit;
+      font-size: 10px;
+      padding: 4px 9px;
+      letter-spacing: 1px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .chip:hover {
+      border-color: var(--pri);
+      color: var(--white);
+      background: var(--pri-gho);
+    }
+
+    /* Dynamic Content Panel beneath the HUD */
+    .content-panel {
+      height: 145px;
+      flex-shrink: 0;
+      background: var(--panel);
+      border-top: 1px solid var(--border);
+      padding: 10px 14px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .content-card-type {
+      font-size: 9px;
+      letter-spacing: 2px;
+      color: var(--acc);
+      font-weight: 700;
+    }
+    .content-card-title {
+      font-size: 13px;
+      color: var(--white);
+      font-weight: 700;
+      letter-spacing: 1px;
+    }
+    .content-card-body {
+      font-size: 12px;
+      color: var(--text-med);
+      line-height: 1.5;
+      user-select: text;
+      white-space: pre-wrap;
+    }
+    .content-grid {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 4px;
+    }
+    .content-stat {
+      background: var(--dark);
+      border: 1px solid var(--border);
+      padding: 5px 10px;
+      font-size: 11px;
+    }
+    .content-stat span { color: var(--text-dim); font-size: 9px; display: block; }
+    .content-stat strong { color: var(--pri); }
+
+    /* ── RIGHT ACTIVITY & COMMS LOG ── */
+    .right-panel {
+      background: var(--panel);
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    .log-feed {
+      flex: 1;
+      padding: 12px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 9px;
+      user-select: text;
+    }
+    .log-msg {
+      padding: 8px 10px;
+      border-left: 2px solid var(--border-b);
+      background: var(--dark);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+    .log-msg.jarvis {
+      border-left-color: var(--pri);
+      background: rgba(0, 212, 255, 0.05);
+    }
+    .log-msg.user {
+      border-left-color: var(--green);
+    }
+    .log-msg.sys {
+      border-left-color: var(--acc2);
+      font-size: 11px;
+      color: var(--text-med);
+    }
+    .log-meta {
+      display: flex;
+      justify-content: space-between;
+      font-size: 9px;
+      letter-spacing: 1.5px;
+      color: var(--text-dim);
+      margin-bottom: 4px;
+      text-transform: uppercase;
+    }
+    .log-meta .spk { color: var(--pri); font-weight: 700; }
+    .log-msg.user .log-meta .spk { color: var(--green); }
+    .log-msg.sys .log-meta .spk { color: var(--acc2); }
+
+    /* Command Input Bar */
+    .cmd-bar {
+      padding: 10px;
+      border-top: 1px solid var(--border);
+      background: var(--panel2);
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .cmd-input {
+      flex: 1;
+      background: var(--dark);
+      border: 1px solid var(--border-b);
+      color: var(--white);
+      font-family: inherit;
+      font-size: 12px;
+      padding: 8px 10px;
+      outline: none;
+    }
+    .cmd-input:focus { border-color: var(--pri); }
+    .icon-btn {
+      background: var(--dark);
+      border: 1px solid var(--border-b);
+      color: var(--text);
+      font-family: inherit;
+      font-size: 12px;
+      padding: 7px 10px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .icon-btn:hover { border-color: var(--pri); color: var(--white); }
+    .icon-btn.recording {
+      border-color: var(--red);
+      color: var(--red);
+      background: rgba(255, 51, 85, 0.15);
+    }
+
+    /* ── SPLIT DRAWERS (⚙ SETUP & 🎛 CONTROLS) ── */
+    .drawer-overlay {
+      position: absolute;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      width: 410px;
+      max-width: 95vw;
+      background: var(--panel2);
+      border-left: 1px solid var(--pri);
+      box-shadow: -8px 0 30px rgba(0, 0, 0, 0.75);
+      z-index: 25;
+      display: none;
+      flex-direction: column;
+    }
+    .drawer-overlay.open { display: flex; }
+    .drawer-hdr {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      color: var(--white);
+    }
+    .drawer-content {
+      flex: 1;
+      padding: 14px 16px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .form-group label {
+      font-size: 10px;
+      color: var(--text-med);
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+    }
+    .form-input, .form-select {
+      background: var(--dark);
+      border: 1px solid var(--border-b);
+      color: var(--white);
+      font-family: inherit;
+      font-size: 12px;
+      padding: 7px 9px;
+      outline: none;
+    }
+    .toggle-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .toggle-btn {
+      background: var(--dark);
+      border: 1px solid var(--border);
+      color: var(--text-med);
+      font-family: inherit;
+      font-size: 11px;
+      padding: 9px 10px;
+      text-align: left;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .toggle-btn.on {
+      border-color: var(--green);
+      color: var(--white);
+      background: rgba(0, 255, 136, 0.08);
+    }
+    .mem-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 8px;
+      background: var(--dark);
+      border: 1px solid var(--border);
+      font-size: 11px;
+    }
+    .mem-del {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--red);
+      cursor: pointer;
+      padding: 2px 6px;
+      font-size: 10px;
+    }
+    .ladder-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 6px 8px;
+      background: var(--dark);
+      border: 1px solid var(--border);
+      font-size: 11px;
+    }
+    .pin-box {
+      font-size: 24px;
+      letter-spacing: 8px;
+      font-weight: 700;
+      color: var(--pri);
+      background: var(--dark);
+      border: 1px dashed var(--pri);
+      padding: 10px;
+      text-align: center;
+    }
+
+    @media (max-width: 960px) {
+      .hud-body {
+        grid-template-columns: 1fr;
+        grid-template-rows: 1fr 240px;
+      }
+      .left-panel { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <!-- HEADER -->
+    <header class="hud-header">
+      <div class="brand-title">
+        <span id="hdr-assistant-name">J.A.R.V.I.S</span>
+        <span class="brand-badge">MARK LV // 55</span>
+      </div>
+      <div class="hdr-pill">
+        <span class="hdr-dot" id="hdr-status-dot"></span>
+        <span id="hdr-status-text">LISTENING</span>
+      </div>
+      <div class="hdr-pill" title="Active Gemini Model Ladder Rung">
+        <span>LADDER:</span>
+        <strong id="hdr-model-rung" style="color:var(--pri)">gemini-3.8-flash</strong>
+      </div>
+      <div class="hdr-spacer"></div>
+      <button class="hdr-btn warn" id="btn-undo" onclick="triggerUndo()" title="Reverse last file or setting action">
+        ↩ UNDO (<span id="undo-count">0</span>)
+      </button>
+      <button class="hdr-btn" id="btn-mute" onclick="toggleMute()">
+        🎙 MIC: ON
+      </button>
+      <button class="hdr-btn" id="btn-controls" onclick="toggleDrawer('controls')">
+        🎛 CONTROLS
+      </button>
+      <button class="hdr-btn" id="btn-setup" onclick="toggleDrawer('setup')">
+        ⚙ SETUP
+      </button>
+    </header>
+
+    <!-- REAL CONFIRMATION BANNER -->
+    <div class="confirm-banner" id="confirm-banner">
+      <div class="confirm-text">
+        ⚠️ <strong>IRREVERSIBLE ACTION GATE:</strong>
+        <span id="confirm-label">System Shutdown</span> — Model cannot self-confirm. Human authorization required.
+      </div>
+      <div class="confirm-actions">
+        <button class="btn-confirm" onclick="resolveConfirmation('confirm')">CONFIRM</button>
+        <button class="btn-cancel" onclick="resolveConfirmation('cancel')">CANCEL</button>
+      </div>
+    </div>
+
+    <!-- BODY -->
+    <div class="hud-body">
+      <!-- LEFT TELEMETRY -->
+      <aside class="left-panel">
+        <div>
+          <div class="sec-title">System Telemetry</div>
+          <div class="metric-row">
+            <div class="metric-hdr"><span>CPU CORE</span><span class="metric-val" id="val-cpu">14%</span></div>
+            <div class="metric-bar-bg"><div class="metric-bar-fill" id="bar-cpu" style="width:14%"></div></div>
+          </div>
+          <div class="metric-row">
+            <div class="metric-hdr"><span>MEMORY</span><span class="metric-val" id="val-mem">42%</span></div>
+            <div class="metric-bar-bg"><div class="metric-bar-fill" id="bar-mem" style="width:42%"></div></div>
+          </div>
+          <div class="metric-row">
+            <div class="metric-hdr"><span>GPU ENGINE</span><span class="metric-val" id="val-gpu">22%</span></div>
+            <div class="metric-bar-bg"><div class="metric-bar-fill" id="bar-gpu" style="width:22%"></div></div>
+          </div>
+          <div class="metric-row">
+            <div class="metric-hdr"><span>THERMAL</span><span class="metric-val" id="val-tmp">47°C</span></div>
+            <div class="metric-bar-bg"><div class="metric-bar-fill" id="bar-tmp" style="width:47%"></div></div>
+          </div>
+          <div class="metric-row">
+            <div class="metric-hdr"><span>VOLUME</span><span class="metric-val" id="val-vol">72%</span></div>
+            <div class="metric-bar-bg"><div class="metric-bar-fill" id="bar-vol" style="width:72%"></div></div>
+          </div>
+          <div class="metric-row">
+            <div class="metric-hdr"><span>BRIGHTNESS</span><span class="metric-val" id="val-bri">85%</span></div>
+            <div class="metric-bar-bg"><div class="metric-bar-fill" id="bar-bri" style="width:85%"></div></div>
+          </div>
+        </div>
+
+        <div>
+          <div class="sec-title">Workspace Files</div>
+          <div class="mini-list" id="file-list"></div>
+        </div>
+
+        <div>
+          <div class="sec-title">Smart Reminders</div>
+          <div class="mini-list" id="reminder-list"></div>
+        </div>
+
+        <div>
+          <div class="sec-title">Watched Topics</div>
+          <div class="mini-list" id="monitor-list"></div>
+        </div>
+      </aside>
+
+      <!-- CENTER HUD STAGE -->
+      <main class="center-stage">
+        <div class="quick-chips">
+          <button class="chip" onclick="sendQuick('Play the Dune Part Two trailer on the HUD')">📺 Play Dune Trailer</button>
+          <button class="chip" onclick="sendQuick('Organize my desktop files into folders')">📂 Organize Desktop</button>
+          <button class="chip" onclick="sendQuick('Undo that last action')">↩️ Undo Last Action</button>
+          <button class="chip" onclick="sendQuick('Set volume to 40%')">🔊 Volume 40%</button>
+          <button class="chip" onclick="sendQuick('Weather report for San Francisco')">🌤️ Weather Report</button>
+          <button class="chip" onclick="sendQuick('Toggle WiFi')">⚠️ Test Confirm Gate (WiFi)</button>
+          <button class="chip" onclick="sendQuick('What do you remember about me?')">🧠 Recall Memory</button>
+        </div>
+
+        <div class="canvas-wrap" id="canvas-wrap">
+          <canvas id="hud-canvas"></canvas>
+
+          <!-- HUD VIDEO OVERLAY (shares the avatar center stack) -->
+          <div class="hud-video-layer" id="hud-video-layer">
+            <div class="hud-video-hdr">
+              <span>📺 HUD STREAM //</span>
+              <strong id="hud-video-title" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Stream</strong>
+              <button class="hdr-btn" id="btn-video-sound" onclick="toggleVideoSound()">🔇 SOUND OFF (MIC SAFE)</button>
+              <button class="hdr-btn danger" onclick="stopHudVideo()">✕ CLOSE</button>
+            </div>
+            <div class="hud-video-body" id="hud-video-body"></div>
+          </div>
+        </div>
+
+        <!-- DYNAMIC CONTENT PANEL -->
+        <section class="content-panel" id="content-panel">
+          <div class="content-card-type" id="cp-type">MARK LV // DYNAMIC TELEMETRY DISPLAY</div>
+          <div class="content-card-title" id="cp-title">HOLOGRAPHIC HEAD &amp; 9-MODEL LADDER READY</div>
+          <div class="content-card-body" id="cp-body">Say or type any command. Try playing a video in the HUD, organizing desktop files, testing the undo stack, or inspecting long-term memory.</div>
+          <div class="content-grid" id="cp-grid"></div>
+        </section>
+      </main>
+
+      <!-- RIGHT LOG & COMMAND BAR -->
+      <aside class="right-panel">
+        <div class="sec-title" style="padding:10px 12px 6px;margin:0">Activity &amp; Comms Log</div>
+        <div class="log-feed" id="log-feed"></div>
+        <div class="cmd-bar">
+          <label class="icon-btn" for="vision-input" title="Attach screen/camera image for Gemini Vision">👁️</label>
+          <input type="file" id="vision-input" accept="image/*" style="display:none" onchange="handleVisionUpload(this)" />
+          <button class="icon-btn" id="btn-voice-rec" onclick="toggleVoiceInput()" title="Speak to JARVIS (or hold Ctrl+Space)">🎤</button>
+          <input class="cmd-input" id="cmd-input" placeholder="Command JARVIS (or press Enter)…" autocomplete="off" />
+          <button class="hdr-btn" onclick="submitCommand()">SEND</button>
+        </div>
+      </aside>
+
+      <!-- DRAWER 1: 🎛 CONTROLS (Daily Switches) -->
+      <div class="drawer-overlay" id="drawer-controls">
+        <div class="drawer-hdr">
+          <span>🎛 CONTROLS // DAILY SWITCHES</span>
+          <button class="hdr-btn" onclick="toggleDrawer('controls')">✕</button>
+        </div>
+        <div class="drawer-content">
+          <div class="sec-title">HUD Centrepiece &amp; Rendering</div>
+          <div class="toggle-grid">
+            <button class="toggle-btn on" id="tgl-style-face" onclick="setHudStyle('face')">
+              <span>🧑‍🎤 3D Holo Head</span><span>FACE</span>
+            </button>
+            <button class="toggle-btn" id="tgl-style-core" onclick="setHudStyle('core')">
+              <span>⚛️ Reactor Core</span><span>CORE</span>
+            </button>
+            <button class="toggle-btn on" id="tgl-shaded" onclick="toggleShaded()">
+              <span>💡 Lit Surface</span><span id="lbl-shaded">ON</span>
+            </button>
+            <button class="toggle-btn on" id="tgl-tts" onclick="toggleTts()">
+              <span>🔊 Voice Replies</span><span id="lbl-tts">ON</span>
+            </button>
+          </div>
+
+          <div class="sec-title">Interaction Modes</div>
+          <div class="toggle-grid">
+            <button class="toggle-btn" id="tgl-ptt" onclick="toggleFlag('push_to_talk_enabled')">
+              <span>🎚️ Push-to-Talk (Ctrl+Space)</span><span id="lbl-ptt">OFF</span>
+            </button>
+            <button class="toggle-btn" id="tgl-wake" onclick="toggleFlag('wake_word_enabled')">
+              <span>🎙️ Wake Word ("Hey Jarvis")</span><span id="lbl-wake">OFF</span>
+            </button>
+            <button class="toggle-btn on" id="tgl-brief" onclick="toggleFlag('morning_brief_enabled')">
+              <span>🌅 Morning Briefing</span><span id="lbl-brief">ON</span>
+            </button>
+            <button class="toggle-btn" id="tgl-sleep" onclick="toggleSleepState()">
+              <span>😴 Sleep / Standby</span><span id="lbl-sleep">AWAKE</span>
+            </button>
+          </div>
+
+          <div class="sec-title">🪜 Measured Model Ladder &amp; Cooldowns</div>
+          <div id="ladder-list" style="display:flex;flex-direction:column;gap:6px"></div>
+
+          <div class="sec-title">↩️ Undo Journal Stack</div>
+          <div id="undo-list" style="display:flex;flex-direction:column;gap:6px"></div>
+        </div>
+      </div>
+
+      <!-- DRAWER 2: ⚙ SETUP (Customization, Memory, Remote Pairing) -->
+      <div class="drawer-overlay" id="drawer-setup">
+        <div class="drawer-hdr">
+          <span>⚙ SETUP // CUSTOMIZATION &amp; MEMORY</span>
+          <button class="hdr-btn" onclick="toggleDrawer('setup')">✕</button>
+        </div>
+        <div class="drawer-content">
+          <div class="sec-title">🪪 Identity &amp; Voice</div>
+          <div class="form-group">
+            <label>Assistant Name</label>
+            <input class="form-input" id="cfg-assistant-name" value="J.A.R.V.I.S" onchange="saveCustomization()" />
+          </div>
+          <div class="form-group">
+            <label>Your Name (Addressing)</label>
+            <input class="form-input" id="cfg-user-name" value="Commander" onchange="saveCustomization()" />
+          </div>
+          <div class="form-group">
+            <label>Gemini Native Voice</label>
+            <select class="form-select" id="cfg-voice" onchange="saveCustomization()">
+              <option value="Charon">Charon (Composed &amp; Deep)</option>
+              <option value="Puck">Puck (Crisp &amp; Articulate)</option>
+              <option value="Kore">Kore (Warm &amp; Clear)</option>
+              <option value="Fenrir">Fenrir (Authoritative)</option>
+              <option value="Zephyr">Zephyr (Measured &amp; Calm)</option>
+            </select>
+          </div>
+
+          <div class="sec-title">🎨 Live HUD &amp; Avatar Accent Theme</div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <input type="color" id="cfg-color" value="#00d4ff" onchange="applyThemeAccent(this.value)" style="width:48px;height:34px;background:transparent;border:1px solid var(--border-b);cursor:pointer" />
+            <button class="chip" onclick="applyThemeAccent('#00d4ff')">Cyan</button>
+            <button class="chip" onclick="applyThemeAccent('#ff6b00')">Mark Gold</button>
+            <button class="chip" onclick="applyThemeAccent('#00ff88')">Emerald</button>
+            <button class="chip" onclick="applyThemeAccent('#a855f7')">Quantum Violet</button>
+          </div>
+
+          <div class="sec-title">📱 Remote Phone Dashboard Pairing</div>
+          <div class="pin-box" id="pairing-pin">------</div>
+          <div style="display:flex;gap:8px">
+            <button class="hdr-btn" style="flex:1;justify-content:center" onclick="refreshPairingKey()">↻ NEW PIN</button>
+            <a class="hdr-btn" style="flex:1;justify-content:center;text-decoration:none" href="/login" target="_blank">↗ OPEN REMOTE UI</a>
+          </div>
+
+          <div class="sec-title">🧠 Recallable Memory Panel</div>
+          <div style="display:flex;gap:6px">
+            <select class="form-select" id="mem-cat" style="width:110px">
+              <option value="notes">notes</option>
+              <option value="identity">identity</option>
+              <option value="preferences">preferences</option>
+              <option value="projects">projects</option>
+              <option value="relationships">relationships</option>
+            </select>
+            <input class="form-input" id="mem-key" placeholder="key" style="width:90px" />
+            <input class="form-input" id="mem-val" placeholder="value…" style="flex:1" />
+            <button class="hdr-btn" onclick="addMemoryFact()">+</button>
+          </div>
+          <div id="memory-list" style="display:flex;flex-direction:column;gap:5px"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // =========================================================================
+    // 1. LIVE THEME ENGINE (Ported from apply_ui_accent in ui.py)
+    // =========================================================================
+    const BASE_PALETTE = {
+      bg: "#00060a",
+      panel: "#010d14",
+      panel2: "#010f18",
+      border: "#0d3347",
+      "border-b": "#1a5c7a",
+      "border-a": "#0f4060",
+      pri: "#00d4ff",
+      "pri-dim": "#007a99",
+      "pri-gho": "#001f2e",
+      text: "#8ffcff",
+      "text-dim": "#3a8a9a",
+      "text-med": "#5ab8cc",
+      white: "#d8f8ff",
+      dark: "#000d14",
+      "bar-bg": "#011520"
+    };
+
+    const currentTheme = { ...BASE_PALETTE, acc: "#ff6b00", acc2: "#ffcc00", green: "#00ff88", red: "#ff3355", muted: "#ff3366" };
+
+    function hexToRgb(hex) {
+      const n = parseInt(hex.slice(1), 16);
+      return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+    }
+
+    function rgbToHsv(r, g, b) {
+      r /= 255; g /= 255; b /= 255;
+      const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+      let h = 0;
+      const s = max === 0 ? 0 : d / max, v = max;
+      if (max !== min) {
+        switch (max) {
+          case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+          case g: h = (b - r) / d + 2; break;
+          case b: h = (r - g) / d + 4; break;
+        }
+        h /= 6;
+      }
+      return [h, s, v];
+    }
+
+    function hsvToHex(h, s, v) {
+      let r = 0, g = 0, b = 0;
+      const i = Math.floor(h * 6);
+      const f = h * 6 - i;
+      const p = v * (1 - s), q = v * (1 - f * s), t = v * (1 - (1 - f) * s);
+      switch (i % 6) {
+        case 0: r = v; g = t; b = p; break;
+        case 1: r = q; g = v; b = p; break;
+        case 2: r = p; g = v; b = t; break;
+        case 3: r = p; g = q; b = v; break;
+        case 4: r = t; g = p; b = v; break;
+        case 5: r = v; g = p; b = q; break;
+      }
+      const toHex = x => Math.round(x * 255).toString(16).padStart(2, "0");
+      return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+    }
+
+    function applyThemeAccent(accentHex, persist = true) {
+      if (!/^#[0-9a-fA-F]{6}$/.test(accentHex)) return;
+      const baseH = rgbToHsv(...hexToRgb(BASE_PALETTE.pri))[0];
+      const [accH, accS] = rgbToHsv(...hexToRgb(accentHex));
+      const dh = accH - baseH;
+      const root = document.documentElement;
+      for (const [key, hex0] of Object.entries(BASE_PALETTE)) {
+        let [h, s, v] = rgbToHsv(...hexToRgb(hex0));
+        if (accS < 0.08) s *= 0.15;
+        const shifted = hsvToHex((h + dh + 1) % 1, s, v);
+        currentTheme[key] = shifted;
+        root.style.setProperty(`--${key}`, shifted);
+      }
+      document.getElementById("cfg-color").value = accentHex;
+      if (persist) {
+        fetch("/api/config", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ui_color: accentHex })
+        });
+      }
+    }
+
+    // =========================================================================
+    // 2. 3D HOLOGRAPHIC HEAD MESH & RENDERER (Ported from avatar_mesh.py & avatar.py)
+    // =========================================================================
+    const LANDMARKS = {
+      eye_l: [33, 7, 163, 144, 145, 153, 154, 155, 133, 173, 157, 158, 159, 160, 161, 246],
+      eye_r: [263, 249, 390, 373, 374, 380, 381, 382, 362, 398, 384, 385, 386, 387, 388, 466],
+      brow_l: [70, 63, 105, 66, 107],
+      brow_r: [300, 293, 334, 296, 336],
+      lips_out: [61, 146, 91, 181, 84, 17, 314, 405, 321, 375, 291, 409, 270, 269, 267, 0, 37, 39, 40, 185],
+      lips_in: [78, 95, 88, 178, 87, 14, 317, 402, 318, 324, 308, 415, 310, 311, 312, 13, 82, 81, 80, 191]
+    };
+
+    const JAW_PIVOT = [0.0, 0.06, -0.34];
+    const JAW_MAX = 0.145;
+    const BROW_LIFT = 0.14;
+    const CAM_D = 4.6;
+
+    let headMesh = null;
+
+    async function loadHeadMesh() {
+      try {
+        const res = await fetch("/face_model.obj");
+        const objText = await res.text();
+        const verts = [];
+        const faces = [];
+        for (const line of objText.split(/\r?\n/)) {
+          if (line.startsWith("v ")) {
+            const p = line.trim().split(/\s+/);
+            verts.push([parseFloat(p[1]), parseFloat(p[2]), parseFloat(p[3])]);
+          } else if (line.startsWith("f ")) {
+            const p = line.trim().split(/\s+/).slice(1, 4);
+            faces.push(p.map(tok => parseInt(tok.split("/")[0], 10) - 1));
+          }
+        }
+        headMesh = buildHeadGeometry(verts, faces);
+      } catch (e) {
+        console.warn("Fallback to reactor core if OBJ load fails:", e);
+      }
+    }
+
+    function buildHeadGeometry(faceVerts, faceTris) {
+      // Find boundary loop of face mask
+      const edgeCounts = new Map();
+      const edgeKey = (a, b) => a < b ? `${a}_${b}` : `${b}_${a}`;
+      for (const [a, b, c] of faceTris) {
+        for (const [u, v] of [[a, b], [b, c], [c, a]]) {
+          const k = edgeKey(u, v);
+          edgeCounts.set(k, (edgeCounts.get(k) || 0) + 1);
+        }
+      }
+      const adj = new Map();
+      for (const [k, cnt] of edgeCounts.entries()) {
+        if (cnt === 1) {
+          const [u, v] = k.split("_").map(Number);
+          if (!adj.has(u)) adj.set(u, []);
+          if (!adj.has(v)) adj.set(v, []);
+          adj.get(u).push(v);
+          adj.get(v).push(u);
+        }
+      }
+      const start = adj.keys().next().value;
+      const loop = [start];
+      let prev = null, cur = start;
+      while (true) {
+        const neighbors = (adj.get(cur) || []).filter(v => v !== prev);
+        if (!neighbors.length || neighbors[0] === start) break;
+        prev = cur;
+        cur = neighbors[0];
+        loop.push(cur);
+      }
+
+      const verts = faceVerts.map(v => [...v]);
+      const faces = faceTris.map(f => [...f]);
+      const chinY = Math.min(...verts.map(v => v[1]));
+
+      // Add Cranium rings
+      const SKULL_C = [0.0, 2.0, -1.0];
+      const SKULL_R = [8.4, 12.4, 8.2];
+      let pole = [0.0, 0.42, -1.0];
+      const pNorm = Math.hypot(...pole);
+      pole = pole.map(x => x / pNorm);
+
+      let prevIdx = [...loop];
+      const skullRings = 5;
+      for (let step = 1; step <= skullRings; step++) {
+        const t = step / skullRings;
+        const w = Math.pow(1 - t, 1.7);
+        const bulge = 1.0 + 0.04 * Math.pow(Math.sin(Math.PI * t), 0.8);
+        const base = verts.length;
+        const idx = [];
+        for (let i = 0; i < loop.length; i++) {
+          const rv = verts[loop[i]];
+          const dx = rv[0] - SKULL_C[0], dy = rv[1] - SKULL_C[1], dz = rv[2] - SKULL_C[2];
+          const rimR = Math.hypot(dx, dy, dz) || 1;
+          const rdx = dx / rimR, rdy = dy / rimR, rdz = dz / rimR;
+          // linear slerp approx
+          let sx = (1 - t) * rdx + t * pole[0];
+          let sy = (1 - t) * rdy + t * pole[1];
+          let sz = (1 - t) * rdz + t * pole[2];
+          const sn = Math.hypot(sx, sy, sz) || 1;
+          sx /= sn; sy /= sn; sz /= sn;
+          const ellR = (1.0 / Math.hypot(sx / SKULL_R[0], sy / SKULL_R[1], sz / SKULL_R[2])) * bulge;
+          const rad = w * rimR + (1 - w) * ellR;
+          let vx = SKULL_C[0] + sx * rad;
+          let vy = SKULL_C[1] + sy * rad;
+          let vz = SKULL_C[2] + sz * rad;
+          if (vy < chinY) {
+            vy = chinY;
+            vx *= 0.55;
+            vz = -1.6 + (vz + 1.6) * 0.55;
+          }
+          verts.push([vx, vy, vz]);
+          idx.push(base + i);
+        }
+        for (let i = 0; i < loop.length; i++) {
+          const a0 = prevIdx[i], b0 = prevIdx[(i + 1) % loop.length];
+          const a1 = idx[i], b1 = idx[(i + 1) % loop.length];
+          faces.push([a0, a1, b1], [a0, b1, b0]);
+        }
+        prevIdx = idx;
+      }
+
+      const nHead = verts.length;
+
+      // Add tapering neck stub
+      const NECK_RINGS = 7, NECK_SEGS = 14, NECK_Z = -1.6;
+      const neckBase = verts.length;
+      const fade = new Float32Array(nHead + NECK_RINGS * NECK_SEGS);
+      fade.fill(1.0, 0, nHead);
+
+      for (let r = 0; r < NECK_RINGS; r++) {
+        const d = r / (NECK_RINGS - 1);
+        const y = -5.5 - d * 7.5;
+        const rx = 4.6 * (1.0 + 0.52 * Math.pow(d, 1.9));
+        const rz = 4.1 * (1.0 + 0.38 * Math.pow(d, 1.9));
+        const fVal = 1.0 - 0.72 * Math.pow(d, 1.5);
+        for (let s = 0; s < NECK_SEGS; s++) {
+          const ph = (s / NECK_SEGS) * Math.PI * 2;
+          verts.push([rx * Math.cos(ph), y, NECK_Z + rz * Math.sin(ph)]);
+          fade[neckBase + r * NECK_SEGS + s] = fVal;
+        }
+      }
+      for (let r = 0; r < NECK_RINGS - 1; r++) {
+        for (let s = 0; s < NECK_SEGS; s++) {
+          const a = neckBase + r * NECK_SEGS + s;
+          const b = neckBase + r * NECK_SEGS + ((s + 1) % NECK_SEGS);
+          const c = neckBase + (r + 1) * NECK_SEGS + ((s + 1) % NECK_SEGS);
+          const e = neckBase + (r + 1) * NECK_SEGS + s;
+          faces.push([a, b, c], [a, c, e]);
+        }
+      }
+
+      // Normalize crown -> +1, chin -> -1
+      let maxY = -Infinity, minY = Infinity;
+      for (let i = 0; i < nHead; i++) {
+        if (verts[i][1] > maxY) maxY = verts[i][1];
+        if (verts[i][1] < minY) minY = verts[i][1];
+      }
+      const scale = 2.0 / (maxY - minY);
+      const midY = (maxY + minY) * 0.5;
+      let spanBottom = Infinity;
+      for (let i = 0; i < verts.length; i++) {
+        verts[i][0] *= scale;
+        verts[i][1] = (verts[i][1] - midY) * scale;
+        verts[i][2] *= scale;
+        if (verts[i][1] < spanBottom) spanBottom = verts[i][1];
+      }
+
+      // Compute vertex normals
+      const normals = verts.map(() => [0, 0, 0]);
+      for (const [a, b, c] of faces) {
+        const va = verts[a], vb = verts[b], vc = verts[c];
+        const ux = vb[0] - va[0], uy = vb[1] - va[1], uz = vb[2] - va[2];
+        const vx = vc[0] - va[0], vy = vc[1] - va[1], vz = vc[2] - va[2];
+        const nx = uy * vz - uz * vy;
+        const ny = uz * vx - ux * vz;
+        const nz = ux * vy - uy * vx;
+        for (const idx of [a, b, c]) {
+          normals[idx][0] += nx;
+          normals[idx][1] += ny;
+          normals[idx][2] += nz;
+        }
+      }
+      for (let i = 0; i < normals.length; i++) {
+        const n = normals[i];
+        const len = Math.hypot(n[0], n[1], n[2]) || 1;
+        n[0] /= len; n[1] /= len; n[2] /= len;
+        const ox = verts[i][0];
+        const oy = i < nHead ? verts[i][1] : 0;
+        const oz = i < nHead ? verts[i][2] : verts[i][2] - NECK_Z * scale;
+        if (n[0] * ox + n[1] * oy + n[2] * oz < 0) {
+          n[0] = -n[0]; n[1] = -n[1]; n[2] = -n[2];
+        }
+      }
+
+      // Jaw, brow, and lip weights
+      const mouthY = LANDMARKS.lips_out.reduce((s, idx) => s + verts[idx][1], 0) / LANDMARKS.lips_out.length;
+      const normChinY = -1.0;
+      const browIndices = [...LANDMARKS.brow_l, ...LANDMARKS.brow_r];
+      const browY = browIndices.reduce((s, idx) => s + verts[idx][1], 0) / browIndices.length;
+      const lipC = [0, mouthY, LANDMARKS.lips_out.reduce((s, idx) => s + verts[idx][2], 0) / LANDMARKS.lips_out.length];
+
+      const jaw = new Float32Array(verts.length);
+      const brow = new Float32Array(verts.length);
+      const lips = new Float32Array(verts.length);
+
+      for (let i = 0; i < nHead; i++) {
+        const [vx, vy, vz] = verts[i];
+        const j0 = Math.max(0, Math.min(1, (mouthY - vy) / (mouthY - normChinY)));
+        const jz = Math.max(0, Math.min(1, 0.30 + 0.85 * (vz / 0.55)));
+        jaw[i] = Math.pow(j0, 0.8) * jz;
+
+        brow[i] = Math.exp(-Math.pow((vy - browY) / 0.115, 2)) *
+                  Math.max(0, Math.min(1, vz / 0.35)) *
+                  Math.exp(-Math.pow(vx / 0.42, 2));
+
+        lips[i] = Math.exp(-Math.pow((vy - lipC[1]) / 0.155, 2)) *
+                  Math.exp(-Math.pow(vx / 0.30, 2)) *
+                  Math.max(0, Math.min(1, vz / 0.40));
+      }
+      for (const idx of LANDMARKS.lips_in.slice(0, 10)) jaw[idx] = 1.0;
+      for (const idx of LANDMARKS.lips_out.slice(0, 10)) jaw[idx] = 0.95;
+
+      // Unique wireframe edges (stride 2 for crisp lattice)
+      const edgeSet = new Set();
+      const edges = [];
+      let stride = 0;
+      for (const [a, b, c] of faces) {
+        for (const [u, v] of [[a, b], [b, c], [c, a]]) {
+          const k = edgeKey(u, v);
+          if (!edgeSet.has(k)) {
+            edgeSet.add(k);
+            if (stride++ % 2 === 0) edges.push([u, v]);
+          }
+        }
+      }
+
+      return {
+        verts,
+        normals,
+        faces,
+        edges,
+        jaw,
+        brow,
+        lips,
+        lipC,
+        fade,
+        nHead,
+        span: 1.0 - spanBottom,
+        lipUp: [...LANDMARKS.lips_in.slice(10), LANDMARKS.lips_in[0]]
+      };
+    }
+
+    // =========================================================================
+    // 3. HUD ANIMATION & PAINTER STATE
+    // =========================================================================
+    const hudState = {
+      hudStyle: "face",      // "face" | "core"
+      shaded: true,
+      ttsEnabled: true,
+      muted: false,
+      speaking: false,
+      state: "LISTENING",
+      assistantName: "J.A.R.V.I.S",
+      liveAmp: 0.0,
+      ampDisp: 0.0,
+      t: 0.0,
+      sway: 0.0,
+      yaw: 0.0,
+      pitch: 0.0,
+      mouth: 0.0,
+      wide: 0.0,
+      brow: 0.0,
+      blink: 0.0,
+      blinkAt: 2.8,
+      scan: -1.6,
+      gaze: [0.0, 0.0],
+      gazeTgt: [0.0, 0.0],
+      gazeAt: 1.2,
+      corePhase: 0.0,
+      visemeSchedule: null, // { frames: [[lvl, open, wide], ...], startTime, hop }
+      videoUnmutedMicLock: false
+    };
+
+    function pushVisemeSchedule(visemeObj) {
+      if (!visemeObj || !visemeObj.frames) return;
+      hudState.visemeSchedule = {
+        frames: visemeObj.frames,
+        startTime: performance.now() / 1000,
+        hop: visemeObj.hop || 0.02
+      };
+      hudState.speaking = true;
+      updateStatusUI("SPEAKING");
+    }
+
+    function stepAvatar(dt) {
+      hudState.t += dt;
+      hudState.corePhase += dt;
+      const nowSec = performance.now() / 1000;
+
+      // Viseme schedule playback
+      let vOpen = null, vWide = 0.0, vLevel = null;
+      if (hudState.visemeSchedule) {
+        const { frames, startTime, hop } = hudState.visemeSchedule;
+        const idx = Math.floor((nowSec - startTime) / hop);
+        if (idx >= 0 && idx < frames.length) {
+          [vLevel, vOpen, vWide] = frames[idx];
+          if (vLevel > hudState.liveAmp) hudState.liveAmp = vLevel;
+        } else if (idx >= frames.length) {
+          hudState.visemeSchedule = null;
+          hudState.speaking = false;
+          updateStatusUI("LISTENING");
+        }
+      }
+
+      hudState.liveAmp *= 0.88;
+      hudState.ampDisp += (hudState.liveAmp - hudState.ampDisp) * 0.42;
+      const amp = hudState.ampDisp;
+      const live = hudState.speaking && !hudState.muted;
+
+      // Head sway
+      const speed = (hudState.muted ? 0.55 : 1.0) * (live ? 1.25 : 1.0);
+      hudState.sway += dt * speed;
+      const s = hudState.sway;
+      hudState.yaw = 0.25 * Math.sin(s * 0.31) + 0.09 * Math.sin(s * 0.73 + 1.3);
+      hudState.pitch = 0.058 * Math.sin(s * 0.23 + 0.7) + 0.024 * Math.sin(s * 0.61);
+
+      // Mouth articulation
+      const targetMouth = live
+        ? (vOpen !== null ? Math.min(1.0, Math.pow(vLevel || amp, 0.75) * vOpen) : Math.min(1.0, amp * 1.3))
+        : 0.0;
+      const tau = targetMouth > hudState.mouth ? 0.022 : (live ? 0.014 : 0.055);
+      hudState.mouth += (targetMouth - hudState.mouth) * (1 - Math.exp(-dt / tau));
+      if (hudState.mouth < 0.002) hudState.mouth = 0.0;
+
+      // Syllable nod
+      hudState.pitch -= hudState.mouth * 0.026;
+
+      // Lip spread / round
+      const targetWide = live && vOpen !== null ? vWide : 0.0;
+      hudState.wide += (targetWide - hudState.wide) * (1 - Math.exp(-dt / 0.03));
+
+      // Brow lift
+      const targetBrow = live ? 0.45 * amp + 0.25 * Math.sin(hudState.t * 2.1) : (hudState.state === "THINKING" ? -0.25 : 0.05);
+      hudState.brow += (targetBrow - hudState.brow) * 0.16;
+
+      // Gaze saccades
+      if (hudState.t >= hudState.gazeAt) {
+        const reach = live ? 0.85 : 0.5;
+        hudState.gazeTgt = [
+          (Math.random() * 2 - 1) * reach,
+          (Math.random() * 2 - 1) * reach * 0.55
+        ];
+        hudState.gazeAt = hudState.t + (live ? 0.6 + Math.random() * 1.4 : 1.4 + Math.random() * 2.4);
+      }
+      hudState.gaze[0] += (hudState.gazeTgt[0] - hudState.gaze[0]) * 0.25;
+      hudState.gaze[1] += (hudState.gazeTgt[1] - hudState.gaze[1]) * 0.25;
+
+      // Blinking
+      if (hudState.blink > 0) {
+        hudState.blink = Math.max(0, hudState.blink - dt * 8.5);
+      } else if (hudState.t >= hudState.blinkAt) {
+        if (hudState.state !== "SLEEPING") {
+          hudState.blink = 1.0;
+        }
+        hudState.blinkAt = hudState.t + 3.2 + Math.random() * 3.0;
+      }
+
+      // Scanline sweep
+      hudState.scan += dt * (0.55 + 1.5 * amp);
+      if (hudState.scan > 1.35) hudState.scan = -1.75;
+    }
+
+    function blendColor(bgRgb, colRgb, alpha01) {
+      const a = Math.max(0, Math.min(1, alpha01));
+      const r = Math.round(bgRgb[0] + (colRgb[0] - bgRgb[0]) * a);
+      const g = Math.round(bgRgb[1] + (colRgb[1] - bgRgb[1]) * a);
+      const b = Math.round(bgRgb[2] + (colRgb[2] - bgRgb[2]) * a);
+      return `rgb(${r},${g},${b})`;
+    }
+
+    function paintHudCanvas() {
+      const canvas = document.getElementById("hud-canvas");
+      const wrap = document.getElementById("canvas-wrap");
+      if (!canvas || !wrap) return;
+      const dpr = window.devicePixelRatio || 1;
+      const W = wrap.clientWidth;
+      const H = wrap.clientHeight;
+      if (canvas.width !== Math.floor(W * dpr) || canvas.height !== Math.floor(H * dpr)) {
+        canvas.width = Math.floor(W * dpr);
+        canvas.height = Math.floor(H * dpr);
+      }
+      const ctx = canvas.getContext("2d");
+      ctx.save();
+      ctx.scale(dpr, dpr);
+
+      const bgRgb = hexToRgb(currentTheme.bg);
+      const priRgb = hexToRgb(hudState.muted ? currentTheme.muted : currentTheme.pri);
+      const accRgb = hexToRgb(
+        hudState.muted
+          ? currentTheme.muted
+          : hudState.speaking
+          ? currentTheme.acc
+          : hudState.state === "THINKING"
+          ? currentTheme.acc2
+          : hudState.state === "LISTENING"
+          ? currentTheme.green
+          : currentTheme.pri
+      );
+
+      // Background + Grid Dots
+      ctx.fillStyle = currentTheme.bg;
+      ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = currentTheme["pri-gho"];
+      for (let x = 24; x < W; x += 44) {
+        for (let y = 24; y < H; y += 44) {
+          ctx.fillRect(x, y, 1.5, 1.5);
+        }
+      }
+
+      const cx = W / 2;
+      const cy = H / 2;
+      const fw = Math.min(W, H);
+      const syStatus = cy + fw * 0.37;
+      const bandT = 26;
+      const bandH = Math.max(80, syStatus - 14 - bandT);
+
+      if (headMesh && hudState.hudStyle === "face") {
+        const rHead = Math.min(fw * 0.34, bandH / (headMesh.span + 0.08));
+        const headCy = bandT + (bandH - headMesh.span * rHead) / 2 + rHead;
+        paintHoloAvatar(ctx, cx, headCy, rHead, bgRgb, priRgb, accRgb);
+      } else {
+        const rCore = Math.min(W * 0.42, bandH * 0.48);
+        paintReactorCore(ctx, cx, bandT + bandH / 2, rCore, W, bandH, bgRgb, priRgb, accRgb);
+      }
+
+      // Status text line
+      ctx.font = "bold 12px 'Courier New', monospace";
+      ctx.textAlign = "center";
+      ctx.fillStyle = `rgb(${accRgb[0]},${accRgb[1]},${accRgb[2]})`;
+      const statusLabel = hudState.muted
+        ? "⊘  MUTED"
+        : hudState.speaking
+        ? "●  SPEAKING"
+        : hudState.state === "THINKING"
+        ? "◈  THINKING"
+        : `●  ${hudState.state}`;
+      ctx.fillText(statusLabel, cx, syStatus + 12);
+
+      // Reactive 36-bar Waveform
+      const wy = syStatus + 24;
+      const N = 36, bw = 8;
+      const wx0 = (W - N * bw) / 2;
+      const mid = (N - 1) / 2;
+      const amp = hudState.ampDisp;
+      for (let i = 0; i < N; i++) {
+        let hgt = 2;
+        if (hudState.muted) {
+          ctx.fillStyle = currentTheme.muted;
+        } else {
+          const env = Math.pow(1 - Math.abs(i - mid) / mid, 0.7);
+          const shimmer = 0.55 + 0.45 * Math.sin(hudState.t * 10 + i * 0.7);
+          const idle = 3 + 2 * Math.sin(hudState.t * 5 + i * 0.6);
+          hgt = Math.max(2, Math.min(24, idle + amp * 22 * env * shimmer));
+          ctx.fillStyle = amp > 0.04 ? (hgt > 12 ? currentTheme.pri : currentTheme["pri-dim"]) : currentTheme["border-b"];
+        }
+        ctx.fillRect(wx0 + i * bw, wy + 20 - hgt, bw - 1.5, hgt);
+      }
+
+      ctx.restore();
+    }
+
+    function paintHoloAvatar(ctx, cx, cy, r, bgRgb, priRgb, accRgb) {
+      const m = headMesh;
+      const amp = hudState.ampDisp;
+
+      // Aura glow
+      const ar = r * 1.85;
+      const grad = ctx.createRadialGradient(cx, cy, 2, cx, cy, ar);
+      grad.addColorStop(0, `rgba(${priRgb[0]},${priRgb[1]},${priRgb[2]},${0.14 + 0.24 * amp})`);
+      grad.addColorStop(0.45, `rgba(${priRgb[0]},${priRgb[1]},${priRgb[2]},${0.06 + 0.12 * amp})`);
+      grad.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(cx, cy, ar, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Pose vertices
+      const nVerts = m.verts.length;
+      const px = new Float32Array(nVerts);
+      const py = new Float32Array(nVerts);
+      const pz = new Float32Array(nVerts);
+      const xs = new Float32Array(nVerts);
+      const ys = new Float32Array(nVerts);
+      const rnz = new Float32Array(nVerts);
+
+      const cyaw = Math.cos(hudState.yaw), syaw = Math.sin(hudState.yaw);
+      const cp = Math.cos(hudState.pitch), sp = Math.sin(hudState.pitch);
+
+      for (let i = 0; i < nVerts; i++) {
+        let [vx, vy, vz] = m.verts[i];
+
+        if (Math.abs(hudState.brow) > 0.004) {
+          vy += m.brow[i] * (hudState.brow * BROW_LIFT);
+        }
+        if (Math.abs(hudState.wide) > 0.01 && hudState.mouth > 0) {
+          const k = m.lips[i] * (hudState.wide * hudState.mouth);
+          vx += k * (vx - m.lipC[0]) * 0.55;
+          vy += k * (vy - m.lipC[1]) * 0.30;
+          vz -= k * 0.055;
+        }
+        if (hudState.mouth > 0.004 && m.jaw[i] > 0) {
+          const ang = m.jaw[i] * (hudState.mouth * JAW_MAX);
+          const ca = Math.cos(ang), sa = Math.sin(ang);
+          const dy = vy - JAW_PIVOT[1];
+          const dz = vz - JAW_PIVOT[2];
+          vy = JAW_PIVOT[1] + dy * ca - dz * sa;
+          vz = JAW_PIVOT[2] + dy * sa + dz * ca;
+        }
+
+        // Rotate
+        const rx = cyaw * vx + syaw * vz;
+        const ry = sp * syaw * vx + cp * vy - sp * cyaw * vz;
+        const rz = -cp * syaw * vx + sp * vy + cp * cyaw * vz;
+
+        px[i] = rx; py[i] = ry; pz[i] = rz;
+        const w = Math.max(0.35, CAM_D - rz);
+        const kProj = (CAM_D / w) * r;
+        xs[i] = cx + rx * kProj;
+        ys[i] = cy - ry * kProj;
+
+        const [nx, ny, nz] = m.normals[i];
+        rnz[i] = -cp * syaw * nx + sp * ny + cp * cyaw * nz;
+      }
+
+      // Shaded facets
+      if (hudState.shaded) {
+        const visTris = [];
+        for (let i = 0; i < m.faces.length; i++) {
+          const [a, b, c] = m.faces[i];
+          const ax = xs[a], ay = ys[a], bx = xs[b], by = ys[b], cxx = xs[c], cyy = ys[c];
+          const area = Math.abs((bx - ax) * (cyy - ay) - (cxx - ax) * (by - ay));
+          if (area < 2.2) continue;
+
+          const ux = px[b] - px[a], uy = py[b] - py[a], uz = pz[b] - pz[a];
+          const vx = px[c] - px[a], vy = py[c] - py[a], vz = pz[c] - pz[a];
+          let fnx = uy * vz - uz * vy;
+          let fny = uz * vx - ux * vz;
+          let fnz = ux * vy - uy * vx;
+          const fl = Math.hypot(fnx, fny, fnz) || 1;
+          fnx /= fl; fny /= fl; fnz /= fl;
+          if (fnz * (rnz[a] + rnz[b] + rnz[c]) < 0) {
+            fnx = -fnx; fny = -fny; fnz = -fnz;
+          }
+          if (fnz <= 0.015) continue;
+
+          const fres = Math.pow(Math.max(0, 1 - fnz), 1.7);
+          const lam = Math.max(0, fnx * -0.55 + fny * 0.50 + fnz * 0.52);
+          let bright = (0.24 + 0.20 * fres + 0.66 * Math.pow(lam, 1.05)) *
+                       ((m.fade[a] + m.fade[b] + m.fade[c]) / 3) *
+                       (0.88 + 0.24 * amp);
+          bright = Math.max(0.05, Math.min(0.98, bright));
+
+          const isHead = a < m.nHead ? 1000 : 0;
+          const depth = isHead + (pz[a] + pz[b] + pz[c]) / 3;
+          visTris.push({ ax, ay, bx, by, cxx, cyy, bright, depth });
+        }
+
+        visTris.sort((t1, t2) => t1.depth - t2.depth);
+        for (const t of visTris) {
+          ctx.fillStyle = blendColor(bgRgb, priRgb, t.bright * 0.82);
+          ctx.beginPath();
+          ctx.moveTo(t.ax, t.ay);
+          ctx.lineTo(t.bx, t.by);
+          ctx.lineTo(t.cxx, t.cyy);
+          ctx.closePath();
+          ctx.fill();
+        }
+      }
+
+      // Wireframe lattice
+      ctx.lineWidth = 0.85;
+      for (const [e0, e1] of m.edges) {
+        const nzAvg = 0.5 * (rnz[e0] + rnz[e1]);
+        if (hudState.shaded && nzAvg < -0.05) continue;
+        const yAvg = 0.5 * (py[e0] + py[e1]);
+        const scanBoost = 0.35 * Math.exp(-Math.pow((yAvg - hudState.scan) / 0.14, 2));
+        const alpha = Math.min(0.95, (0.18 + 0.38 * (1 - Math.abs(nzAvg)) + scanBoost) * m.fade[e0]);
+        if (alpha < 0.06) continue;
+        ctx.strokeStyle = blendColor(bgRgb, priRgb, alpha);
+        ctx.beginPath();
+        ctx.moveTo(xs[e0], ys[e0]);
+        ctx.lineTo(xs[e1], ys[e1]);
+        ctx.stroke();
+      }
+
+      // Eyes & Gaze Saccades
+      const vis = hudState.state === "SLEEPING" ? 0.12 : (1.0 - hudState.blink);
+      for (const key of ["eye_l", "eye_r"]) {
+        const ring = LANDMARKS[key];
+        let midY = 0;
+        for (const idx of ring) midY += ys[idx];
+        midY /= ring.length;
+
+        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+        ctx.beginPath();
+        ring.forEach((idx, i) => {
+          const x = xs[idx];
+          const y = midY + (ys[idx] - midY) * Math.max(0.05, vis);
+          if (x < minX) minX = x; if (x > maxX) maxX = x;
+          if (y < minY) minY = y; if (y > maxY) maxY = y;
+          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        });
+        ctx.closePath();
+        ctx.fillStyle = blendColor(bgRgb, priRgb, 0.12);
+        ctx.fill();
+        ctx.strokeStyle = `rgba(${priRgb[0]},${priRgb[1]},${priRgb[2]},0.85)`;
+        ctx.lineWidth = 1.3;
+        ctx.stroke();
+
+        if (vis > 0.3) {
+          const ew = maxX - minX, eh = maxY - minY;
+          const gx = (minX + maxX) / 2 + hudState.gaze[0] * ew * 0.16;
+          const gy = (minY + maxY) / 2 + hudState.gaze[1] * eh * 0.20;
+          const rad = Math.min(eh * 0.62, ew * 0.21);
+          ctx.fillStyle = `rgba(${accRgb[0]},${accRgb[1]},${accRgb[2]},${0.45 * vis})`;
+          ctx.beginPath();
+          ctx.ellipse(gx, gy, rad, rad * vis, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = `rgba(${accRgb[0]},${accRgb[1]},${accRgb[2]},${0.95 * vis})`;
+          ctx.beginPath();
+          ctx.ellipse(gx, gy, rad * 0.42, rad * 0.42 * vis, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      // Eyebrows
+      ctx.strokeStyle = `rgba(${priRgb[0]},${priRgb[1]},${priRgb[2]},0.7)`;
+      ctx.lineWidth = 1.8;
+      for (const key of ["brow_l", "brow_r"]) {
+        const ring = LANDMARKS[key];
+        ctx.beginPath();
+        ring.forEach((idx, i) => {
+          if (i === 0) ctx.moveTo(xs[idx], ys[idx]);
+          else ctx.lineTo(xs[idx], ys[idx]);
+        });
+        ctx.stroke();
+      }
+
+      // Mouth cavity & Upper Teeth Strip
+      const inner = LANDMARKS.lips_in;
+      let mMinY = Infinity, mMaxY = -Infinity;
+      ctx.beginPath();
+      inner.forEach((idx, i) => {
+        if (ys[idx] < mMinY) mMinY = ys[idx];
+        if (ys[idx] > mMaxY) mMaxY = ys[idx];
+        if (i === 0) ctx.moveTo(xs[idx], ys[idx]);
+        else ctx.lineTo(xs[idx], ys[idx]);
+      });
+      ctx.closePath();
+
+      if (hudState.mouth > 0.02) {
+        ctx.fillStyle = blendColor(bgRgb, priRgb, 0.08 + 0.12 * hudState.mouth);
+        ctx.fill();
+
+        // Upper teeth strip
+        const openH = mMaxY - mMinY;
+        const th = openH * 0.28;
+        ctx.beginPath();
+        m.lipUp.forEach((idx, i) => {
+          if (i === 0) ctx.moveTo(xs[idx], ys[idx]);
+          else ctx.lineTo(xs[idx], ys[idx]);
+        });
+        for (let i = m.lipUp.length - 1; i >= 0; i--) {
+          const idx = m.lipUp[i];
+          ctx.lineTo(xs[idx], ys[idx] + th);
+        }
+        ctx.closePath();
+        ctx.fillStyle = blendColor(bgRgb, priRgb, 0.65 + 0.25 * hudState.mouth);
+        ctx.fill();
+      }
+
+      ctx.strokeStyle = `rgba(${priRgb[0]},${priRgb[1]},${priRgb[2]},${0.65 + 0.3 * hudState.mouth})`;
+      ctx.lineWidth = 1.3;
+      ctx.beginPath();
+      inner.forEach((idx, i) => {
+        if (i === 0) ctx.moveTo(xs[idx], ys[idx]);
+        else ctx.lineTo(xs[idx], ys[idx]);
+      });
+      ctx.closePath();
+      ctx.stroke();
+
+      ctx.strokeStyle = `rgba(${priRgb[0]},${priRgb[1]},${priRgb[2]},0.45)`;
+      ctx.lineWidth = 1.1;
+      ctx.beginPath();
+      LANDMARKS.lips_out.forEach((idx, i) => {
+        if (i === 0) ctx.moveTo(xs[idx], ys[idx]);
+        else ctx.lineTo(xs[idx], ys[idx]);
+      });
+      ctx.closePath();
+      ctx.stroke();
+    }
+
+    function paintReactorCore(ctx, cx, cy, r, W, H, bgRgb, priRgb, accRgb) {
+      const amp = hudState.ampDisp;
+      const t = hudState.corePhase;
+
+      // Radial atmosphere
+      const grad = ctx.createRadialGradient(cx, cy, 2, cx, cy, r * 0.75);
+      grad.addColorStop(0, blendColor(bgRgb, priRgb, 0.34 + 0.3 * amp));
+      grad.addColorStop(0.55, blendColor(bgRgb, priRgb, 0.14 + 0.15 * amp));
+      grad.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r * 0.75, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Outer circles
+      for (const [rr, a] of [[1.0, 0.36], [0.93, 0.18], [0.355, 0.45]]) {
+        ctx.strokeStyle = blendColor(bgRgb, rr === 0.355 ? accRgb : priRgb, a);
+        ctx.lineWidth = 1.3;
+        ctx.beginPath();
+        ctx.arc(cx, cy, r * rr, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
+      // 72 graduations
+      for (let i = 0; i < 72; i++) {
+        const a = (i * 5 * Math.PI) / 180;
+        const r0 = i % 3 === 0 ? r * 0.885 : r * 0.945;
+        const r1 = r * 0.985;
+        ctx.strokeStyle = blendColor(bgRgb, priRgb, i % 3 === 0 ? 0.42 : 0.18);
+        ctx.lineWidth = i % 3 === 0 ? 1.3 : 1;
+        ctx.beginPath();
+        ctx.moveTo(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0);
+        ctx.lineTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1);
+        ctx.stroke();
+      }
+
+      // Sweeping arcs
+      const arcs = [
+        [0.955, 118, 2, 1, accRgb, 0.75, 2.0],
+        [0.845, 82, 3, -1, priRgb, 0.38, 1.3],
+        [0.760, 150, 1, 1, accRgb, 0.45, 1.6],
+        [0.660, 64, 4, -1, priRgb, 0.26, 1.1]
+      ];
+      arcs.forEach(([rr, span, count, dir, col, alpha, wid], k) => {
+        ctx.strokeStyle = blendColor(bgRgb, col, alpha);
+        ctx.lineWidth = wid;
+        const base = (t * (9 + k * 6) * dir) * (Math.PI / 180);
+        for (let s = 0; s < count; s++) {
+          const a0 = base + (s * Math.PI * 2) / count;
+          ctx.beginPath();
+          ctx.arc(cx, cy, r * rr, a0, a0 + (span * Math.PI) / 180);
+          ctx.stroke();
+        }
+      });
+
+      // Voice spikes ring
+      const nSpikes = 60;
+      const ringR = r * 0.415;
+      ctx.strokeStyle = blendColor(bgRgb, accRgb, 0.35 + 0.5 * amp);
+      ctx.lineWidth = 1.5;
+      for (let i = 0; i < nSpikes; i++) {
+        const a = (i * Math.PI * 2) / nSpikes;
+        const wob = 0.5 + 0.5 * Math.sin(t * 2.3 + i * 0.42);
+        const h = r * (0.02 + amp * 0.20 * wob);
+        ctx.beginPath();
+        ctx.moveTo(cx + Math.cos(a) * ringR, cy + Math.sin(a) * ringR);
+        ctx.lineTo(cx + Math.cos(a) * (ringR + h), cy + Math.sin(a) * (ringR + h));
+        ctx.stroke();
+      }
+
+      // Assistant Name in core
+      ctx.fillStyle = currentTheme.white;
+      ctx.font = `bold ${Math.max(11, Math.round(r * 0.095))}px 'Courier New', monospace`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(hudState.assistantName, cx, cy);
+      ctx.textBaseline = "alphabetic";
+    }
+
+    // Animation loop
+    let lastFrameTime = performance.now();
+    function animateLoop(now) {
+      const dt = Math.min(0.08, Math.max(0.001, (now - lastFrameTime) / 1000));
+      lastFrameTime = now;
+      stepAvatar(dt);
+      paintHudCanvas();
+      requestAnimationFrame(animateLoop);
+    }
+
+    // =========================================================================
+    // 4. UI INTERACTION, WEBSOCKET, VOICE & HUD VIDEO
+    // =========================================================================
+    let activeConfirmationToken = null;
+    let currentVideoState = null;
+
+    function updateStatusUI(stateStr) {
+      hudState.state = stateStr;
+      document.getElementById("hdr-status-text").textContent = hudState.muted ? "MUTED" : stateStr;
+      const dot = document.getElementById("hdr-status-dot");
+      dot.style.background = hudState.muted
+        ? "var(--muted-c)"
+        : stateStr === "SPEAKING"
+        ? "var(--acc)"
+        : stateStr === "THINKING"
+        ? "var(--acc2)"
+        : "var(--green)";
+    }
+
+    function appendLog(speaker, text, timeStr, model) {
+      const feed = document.getElementById("log-feed");
+      const div = document.createElement("div");
+      const cls = speaker === "jarvis" ? "jarvis" : speaker === "user" ? "user" : "sys";
+      div.className = `log-msg ${cls}`;
+      const label = speaker === "jarvis" ? hudState.assistantName : speaker === "user" ? "YOU" : "SYSTEM";
+      const modelTag = model ? ` // ${model}` : "";
+      div.innerHTML = `<div class="log-meta"><span class="spk">${label}${modelTag}</span><span>${timeStr || new Date().toLocaleTimeString()}</span></div><div></div>`;
+      div.lastElementChild.textContent = text;
+      feed.appendChild(div);
+      feed.scrollTop = feed.scrollHeight;
+    }
+
+    function applySideEffects(effects) {
+      if (!Array.isArray(effects)) return;
+      for (const ef of effects) {
+        if (ef.hudVideo) {
+          handleHudVideoEffect(ef.hudVideo);
+        }
+        if (ef.confirmationPending) {
+          showConfirmationBanner(ef.confirmationPending);
+        }
+        if (ef.contentCard) {
+          renderContentCard(ef.contentCard);
+        }
+      }
+      refreshState();
+    }
+
+    function renderContentCard(card) {
+      document.getElementById("cp-type").textContent = card.type || "TELEMETRY";
+      document.getElementById("cp-title").textContent = card.title || "";
+      document.getElementById("cp-body").textContent = card.body || "";
+      const grid = document.getElementById("cp-grid");
+      grid.innerHTML = "";
+      if (Array.isArray(card.items)) {
+        for (const it of card.items) {
+          const d = document.createElement("div");
+          d.className = "content-stat";
+          d.innerHTML = `<span>${it.label}</span><strong>${it.value}</strong>`;
+          grid.appendChild(d);
+        }
+      }
+    }
+
+    // HUD Video Player (starts muted; unmuting automatically mutes the microphone!)
+    function handleHudVideoEffect(v) {
+      const layer = document.getElementById("hud-video-layer");
+      const body = document.getElementById("hud-video-body");
+      const titleEl = document.getElementById("hud-video-title");
+
+      if (v.action === "stop") {
+        stopHudVideo();
+        return;
+      }
+      if (v.action === "mute" || v.action === "unmute") {
+        if (currentVideoState) {
+          currentVideoState.muted = v.action === "mute";
+          syncVideoSoundState();
+        }
+        return;
+      }
+      if (v.action === "play" && v.embedUrl) {
+        currentVideoState = { embedUrl: v.embedUrl, title: v.title || "HUD Stream", muted: true };
+        titleEl.textContent = currentVideoState.title;
+        layer.classList.add("show");
+        renderVideoElement();
+        syncVideoSoundState();
+      }
+    }
+
+    function renderVideoElement() {
+      const body = document.getElementById("hud-video-body");
+      body.innerHTML = "";
+      if (!currentVideoState) return;
+      const url = currentVideoState.embedUrl;
+      if (url.includes("youtube.com/embed/")) {
+        const muteParam = currentVideoState.muted ? "1" : "0";
+        const src = url.replace(/mute=[01]/, `mute=${muteParam}`);
+        const ifr = document.createElement("iframe");
+        ifr.src = src;
+        ifr.allow = "autoplay; encrypted-media; picture-in-picture";
+        ifr.allowFullscreen = true;
+        body.appendChild(ifr);
+      } else {
+        const vid = document.createElement("video");
+        vid.src = url;
+        vid.autoplay = true;
+        vid.loop = true;
+        vid.controls = true;
+        vid.muted = currentVideoState.muted;
+        body.appendChild(vid);
+      }
+    }
+
+    function toggleVideoSound() {
+      if (!currentVideoState) return;
+      currentVideoState.muted = !currentVideoState.muted;
+      renderVideoElement();
+      syncVideoSoundState();
+    }
+
+    function syncVideoSoundState() {
+      const btn = document.getElementById("btn-video-sound");
+      if (!currentVideoState) return;
+      if (!currentVideoState.muted) {
+        btn.textContent = "🔊 SOUND ON (MIC AUTO-MUTED)";
+        hudState.videoUnmutedMicLock = true;
+        hudState.muted = true;
+        appendLog("sys", "Video sound enabled — microphone muted automatically so JARVIS does not answer the soundtrack.");
+      } else {
+        btn.textContent = "🔇 SOUND OFF (MIC SAFE)";
+        if (hudState.videoUnmutedMicLock) {
+          hudState.videoUnmutedMicLock = false;
+          hudState.muted = false;
+          appendLog("sys", "Video muted — microphone re-opened.");
+        }
+      }
+      syncMuteButton();
+    }
+
+    function stopHudVideo() {
+      const layer = document.getElementById("hud-video-layer");
+      const body = document.getElementById("hud-video-body");
+      body.innerHTML = "";
+      layer.classList.remove("show");
+      if (hudState.videoUnmutedMicLock) {
+        hudState.videoUnmutedMicLock = false;
+        hudState.muted = false;
+        syncMuteButton();
+      }
+      currentVideoState = null;
+    }
+
+    // Confirmation Banner
+    function showConfirmationBanner(pending) {
+      activeConfirmationToken = pending.token;
+      document.getElementById("confirm-label").textContent = pending.label;
+      document.getElementById("confirm-banner").classList.add("show");
+    }
+
+    async function resolveConfirmation(decision) {
+      if (!activeConfirmationToken) return;
+      const token = activeConfirmationToken;
+      activeConfirmationToken = null;
+      document.getElementById("confirm-banner").classList.remove("show");
+      const res = await fetch("/api/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token, decision })
+      });
+      const data = await res.json();
+      if (data.result) {
+        appendLog("sys", data.result);
+      }
+      refreshState();
+    }
+
+    // Speech Output & Lip-Sync
+    function speakReply(text, viseme, audioBase64) {
+      if (viseme) pushVisemeSchedule(viseme);
+      if (!hudState.ttsEnabled || hudState.muted) return;
+
+      if (audioBase64) {
+        const audio = new Audio(`data:audio/wav;base64,${audioBase64}`);
+        audio.onended = () => {
+          hudState.speaking = false;
+          updateStatusUI("LISTENING");
+        };
+        audio.play().catch(() => {});
+        return;
+      }
+
+      if ("speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+        const utt = new SpeechSynthesisUtterance(text);
+        utt.rate = 1.04;
+        utt.pitch = 0.92;
+        utt.onend = () => {
+          hudState.speaking = false;
+          updateStatusUI("LISTENING");
+        };
+        window.speechSynthesis.speak(utt);
+      }
+    }
+
+    // Send Command
+    async function submitCommand(customText, imageBase64, imageMime) {
+      const inp = document.getElementById("cmd-input");
+      const text = (customText !== undefined ? customText : inp.value).trim();
+      if (!text && !imageBase64) return;
+      if (customText === undefined) inp.value = "";
+
+      updateStatusUI("THINKING");
+      try {
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            text,
+            withAudio: hudState.ttsEnabled,
+            imageBase64,
+            imageMime
+          })
+        });
+        const data = await res.json();
+        if (data.ok) {
+          if (data.modelUsed) {
+            document.getElementById("hdr-model-rung").textContent = data.modelUsed;
+          }
+          applySideEffects(data.effects);
+          speakReply(data.reply, data.viseme, data.audioBase64);
+        }
+      } catch (e) {
+        appendLog("sys", "Communication error: " + e.message);
+        updateStatusUI("LISTENING");
+      }
+    }
+
+    function sendQuick(txt) {
+      submitCommand(txt);
+    }
+
+    document.getElementById("cmd-input").addEventListener("keydown", e => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        submitCommand();
+      }
+    });
+
+    // Vision Image Upload
+    function handleVisionUpload(input) {
+      const file = input.files && input.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        const b64 = reader.result;
+        submitCommand(`Analyze this image (${file.name}) and report key details.`, b64, file.type);
+      };
+      reader.readAsDataURL(file);
+      input.value = "";
+    }
+
+    // Voice Recording / Speech Recognition
+    let recognition = null;
+    let isRecordingVoice = false;
+
+    function toggleVoiceInput() {
+      const btn = document.getElementById("btn-voice-rec");
+      const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (SpeechRec) {
+        if (isRecordingVoice && recognition) {
+          recognition.stop();
+          return;
+        }
+        recognition = new SpeechRec();
+        recognition.lang = "en-US";
+        recognition.interimResults = false;
+        recognition.onstart = () => {
+          isRecordingVoice = true;
+          btn.classList.add("recording");
+          hudState.liveAmp = 0.65;
+          updateStatusUI("LISTENING");
+        };
+        recognition.onresult = (event) => {
+          const transcript = event.results[0][0].transcript;
+          if (transcript) submitCommand(transcript);
+        };
+        recognition.onend = () => {
+          isRecordingVoice = false;
+          btn.classList.remove("recording");
+        };
+        recognition.start();
+      } else {
+        appendLog("sys", "Browser SpeechRecognition unavailable — type commands below.");
+      }
+    }
+
+    // Push-to-Talk (Ctrl+Space)
+    window.addEventListener("keydown", e => {
+      if (e.ctrlKey && e.code === "Space" && !isRecordingVoice) {
+        e.preventDefault();
+        toggleVoiceInput();
+      }
+    });
+
+    // Undo button
+    async function triggerUndo() {
+      const res = await fetch("/api/undo", { method: "POST" });
+      const data = await res.json();
+      if (data.message) {
+        pushVisemeSchedule({ frames: [[0.6, 0.7, 0.2], [0.5, 0.5, 0], [0.2, 0.2, 0]], hop: 0.08 });
+      }
+      refreshState();
+    }
+
+    // Mute toggle
+    function toggleMute() {
+      hudState.muted = !hudState.muted;
+      syncMuteButton();
+    }
+    function syncMuteButton() {
+      const btn = document.getElementById("btn-mute");
+      btn.textContent = hudState.muted ? "🔇 MIC: MUTED" : "🎙 MIC: ON";
+      btn.classList.toggle("danger", hudState.muted);
+      updateStatusUI(hudState.state);
+    }
+
+    // Split Drawers (Only one open at a time)
+    function toggleDrawer(which) {
+      const ctrl = document.getElementById("drawer-controls");
+      const setup = document.getElementById("drawer-setup");
+      const btnC = document.getElementById("btn-controls");
+      const btnS = document.getElementById("btn-setup");
+
+      if (which === "controls") {
+        const opening = !ctrl.classList.contains("open");
+        ctrl.classList.toggle("open", opening);
+        setup.classList.remove("open");
+        btnC.classList.toggle("active", opening);
+        btnS.classList.remove("active");
+      } else {
+        const opening = !setup.classList.contains("open");
+        setup.classList.toggle("open", opening);
+        ctrl.classList.remove("open");
+        btnS.classList.toggle("active", opening);
+        btnC.classList.remove("active");
+      }
+    }
+
+    function setHudStyle(style) {
+      hudState.hudStyle = style;
+      document.getElementById("tgl-style-face").classList.toggle("on", style === "face");
+      document.getElementById("tgl-style-core").classList.toggle("on", style === "core");
+      fetch("/api/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ hud_style: style })
+      });
+    }
+
+    function toggleShaded() {
+      hudState.shaded = !hudState.shaded;
+      document.getElementById("tgl-shaded").classList.toggle("on", hudState.shaded);
+      document.getElementById("lbl-shaded").textContent = hudState.shaded ? "ON" : "WIRE";
+      fetch("/api/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shaded: hudState.shaded })
+      });
+    }
+
+    function toggleTts() {
+      hudState.ttsEnabled = !hudState.ttsEnabled;
+      document.getElementById("tgl-tts").classList.toggle("on", hudState.ttsEnabled);
+      document.getElementById("lbl-tts").textContent = hudState.ttsEnabled ? "ON" : "OFF";
+    }
+
+    function toggleSleepState() {
+      const sleeping = hudState.state === "SLEEPING";
+      updateStatusUI(sleeping ? "LISTENING" : "SLEEPING");
+      document.getElementById("tgl-sleep").classList.toggle("on", !sleeping);
+      document.getElementById("lbl-sleep").textContent = !sleeping ? "SLEEP" : "AWAKE";
+    }
+
+    let serverConfig = {};
+    async function toggleFlag(flagKey) {
+      const next = !serverConfig[flagKey];
+      serverConfig[flagKey] = next;
+      await fetch("/api/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [flagKey]: next })
+      });
+      refreshState();
+    }
+
+    async function saveCustomization() {
+      const assistant_name = document.getElementById("cfg-assistant-name").value.trim() || "J.A.R.V.I.S";
+      const user_name = document.getElementById("cfg-user-name").value.trim() || "Commander";
+      const voice_name = document.getElementById("cfg-voice").value;
+      await fetch("/api/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assistant_name, user_name, voice_name })
+      });
+      refreshState();
+    }
+
+    async function refreshPairingKey() {
+      const res = await fetch("/api/pairing-key", { method: "POST" });
+      const data = await res.json();
+      if (data.key) {
+        document.getElementById("pairing-pin").textContent = data.key;
+      }
+    }
+
+    async function addMemoryFact() {
+      const category = document.getElementById("mem-cat").value;
+      const key = document.getElementById("mem-key").value.trim();
+      const value = document.getElementById("mem-val").value.trim();
+      if (!key || !value) return;
+      await fetch("/api/memory", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ category, key, value })
+      });
+      document.getElementById("mem-key").value = "";
+      document.getElementById("mem-val").value = "";
+      refreshState();
+    }
+
+    async function deleteMemoryFact(cat, key) {
+      await fetch(`/api/memory/${encodeURIComponent(cat)}/${encodeURIComponent(key)}`, {
+        method: "DELETE"
+      });
+      refreshState();
+    }
+
+    // Sync state from backend
+    let initialHistoryLoaded = false;
+    async function refreshState() {
+      try {
+        const res = await fetch("/api/state");
+        const s = await res.json();
+        serverConfig = s.config || {};
+        hudState.assistantName = serverConfig.assistant_name || "J.A.R.V.I.S";
+        hudState.hudStyle = serverConfig.hud_style || "face";
+        document.getElementById("hdr-assistant-name").textContent = hudState.assistantName;
+        document.getElementById("cfg-assistant-name").value = hudState.assistantName;
+        document.getElementById("cfg-user-name").value = serverConfig.user_name || "";
+        document.getElementById("cfg-voice").value = serverConfig.voice_name || "Charon";
+
+        // Flags
+        document.getElementById("tgl-ptt").classList.toggle("on", Boolean(serverConfig.push_to_talk_enabled));
+        document.getElementById("lbl-ptt").textContent = serverConfig.push_to_talk_enabled ? "ON" : "OFF";
+        document.getElementById("tgl-wake").classList.toggle("on", Boolean(serverConfig.wake_word_enabled));
+        document.getElementById("lbl-wake").textContent = serverConfig.wake_word_enabled ? "ON" : "OFF";
+        document.getElementById("tgl-brief").classList.toggle("on", Boolean(serverConfig.morning_brief_enabled));
+        document.getElementById("lbl-brief").textContent = serverConfig.morning_brief_enabled ? "ON" : "OFF";
+
+        // Telemetry bars
+        const m = s.metrics || {};
+        const setBar = (id, val, unit = "%") => {
+          document.getElementById(`val-${id}`).textContent = `${Math.round(val)}${unit}`;
+          document.getElementById(`bar-${id}`).style.width = `${Math.min(100, Math.max(0, val))}%`;
+        };
+        setBar("cpu", m.cpu || 12);
+        setBar("mem", m.mem || 40);
+        setBar("gpu", m.gpu || 20);
+        setBar("tmp", m.tmp || 46, "°C");
+        setBar("vol", m.volume ?? 72);
+        setBar("bri", m.brightness ?? 85);
+
+        // Undo stack
+        const uStack = s.undoStack || [];
+        document.getElementById("undo-count").textContent = uStack.length;
+        const uList = document.getElementById("undo-list");
+        uList.innerHTML = uStack.length
+          ? uStack.map(u => `<div class="ladder-row"><span>${u.description}</span><span style="color:var(--text-dim)">${u.timestamp}</span></div>`).join("")
+          : `<div class="ladder-row" style="color:var(--text-dim)">No actions queued in undo stack</div>`;
+
+        // Model ladder
+        const lList = document.getElementById("ladder-list");
+        lList.innerHTML = (s.ladder || []).map(r => {
+          const cooling = r.cooldownUntil > Date.now();
+          return `<div class="ladder-row">
+            <div><strong style="color:${cooling ? 'var(--red)' : 'var(--pri)'}">${r.model}</strong> <span style="color:var(--text-dim)">(${r.tier})</span></div>
+            <div style="color:${cooling ? 'var(--red)' : 'var(--green)'}">${cooling ? 'COOLDOWN' : r.measuredMs + 'ms // READY'}</div>
+          </div>`;
+        }).join("");
+
+        // Pairing PIN
+        if (s.pairingKey) {
+          document.getElementById("pairing-pin").textContent = s.pairingKey;
+        }
+
+        // Memory entries
+        const memList = document.getElementById("memory-list");
+        memList.innerHTML = (s.memory || []).map(item => `
+          <div class="mem-item">
+            <div><strong style="color:var(--pri)">${item.category}/${item.key}:</strong> ${item.value}</div>
+            <button class="mem-del" onclick="deleteMemoryFact('${item.category}','${item.key}')">✕</button>
+          </div>
+        `).join("");
+
+        // Files
+        const fList = document.getElementById("file-list");
+        fList.innerHTML = (s.files || []).map(f => `
+          <div class="mini-item" onclick="sendQuick('Read and summarize file ${f.path}')">
+            <div>📄 ${f.path}</div>
+          </div>
+        `).join("");
+
+        // Reminders
+        const rList = document.getElementById("reminder-list");
+        rList.innerHTML = (s.reminders || []).map(r => `
+          <div class="mini-item">
+            <div>⏰ ${r.title}</div>
+            <div class="sub">${r.time}</div>
+          </div>
+        `).join("");
+
+        // Monitors
+        const mList = document.getElementById("monitor-list");
+        mList.innerHTML = (s.monitors || []).map(m => `
+          <div class="mini-item">
+            <div>👁️ ${m.topic}</div>
+            <div class="sub">${m.status}</div>
+          </div>
+        `).join("");
+
+        // Confirmation
+        if (s.pendingConfirmation) {
+          showConfirmationBanner(s.pendingConfirmation);
+        }
+
+        if (!initialHistoryLoaded && Array.isArray(s.history)) {
+          initialHistoryLoaded = true;
+          const feed = document.getElementById("log-feed");
+          feed.innerHTML = "";
+          for (const h of s.history) {
+            appendLog(h.speaker, h.text, h.time, h.model);
+          }
+        }
+      } catch (e) {
+        // ignore transient poll error
+      }
+    }
+
+    // WebSocket live connection
+    function connectWs() {
+      const proto = location.protocol === "https:" ? "wss" : "ws";
+      const ws = new WebSocket(`${proto}://${location.host}/ws`);
+      ws.onmessage = (ev) => {
+        try {
+          const msg = JSON.parse(ev.data);
+          if (msg.type === "log") {
+            appendLog(msg.speaker, msg.text, msg.time, msg.model);
+            if (msg.effects) applySideEffects(msg.effects);
+            if (msg.viseme) pushVisemeSchedule(msg.viseme);
+          } else if (msg.type === "sys") {
+            appendLog("sys", msg.text);
+          } else if (msg.type === "status") {
+            updateStatusUI(msg.state === "active" ? "LISTENING" : msg.state.toUpperCase());
+          }
+        } catch {}
+      };
+      ws.onclose = () => setTimeout(connectWs, 3000);
+    }
+
+    // Boot
+    loadHeadMesh().then(() => {
+      refreshState();
+      connectWs();
+      requestAnimationFrame(animateLoop);
+      setInterval(refreshState, 3000);
+    });
+  </script>
+</body>
+</html>

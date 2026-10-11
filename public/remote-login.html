@@ -168,7 +168,7 @@
         if (d.ok && d.token) {
           sessionStorage.setItem('jarvis_key', d.key);
           sessionStorage.setItem('jarvis_token', d.token);
-          location.replace('/');
+          location.replace('/remote');
           return;
         }
       } catch (_) {}
@@ -204,7 +204,7 @@
       if (data.ok && data.token) {
         sessionStorage.setItem('jarvis_key', key);
         sessionStorage.setItem('jarvis_token', data.token);
-        location.href = '/';
+        location.href = '/remote';
       } else {
         inp.value = '';
         inp.focus();

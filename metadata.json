@@ -1,0 +1,11 @@
+{
+  "name": "Mark LV — JARVIS AI Assistant & HUD",
+  "description": "Cross-platform personal AI assistant with real-time 3D holographic avatar, Gemini Live & multi-model ladder, recallable memory, undoable actions, video HUD, and remote dashboard.",
+  "requestFramePermissions": [
+    "microphone",
+    "camera"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
